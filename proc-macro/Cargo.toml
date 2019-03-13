@@ -9,7 +9,6 @@ keywords = ["database","sql","macro"]
 categories = ["database"]
 repository = "https://github.com/quietboil/include-sql"
 homepage = "https://github.com/quietboil/include-sql"
-readme = "README.md"
 
 [dependencies]
 syn                = { version = "0.15", features = ["full"] }
