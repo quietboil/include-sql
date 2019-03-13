@@ -1,0 +1,14 @@
+[package]
+name = "include-sql-helper"
+version = "0.1.0"
+edition = "2018"
+description = "An include-sql helper. Provides non-proc-macro items of the API."
+authors = ["Alex Demenchuk <alexander.demenchuk@gmail.com>"]
+license = "MIT"
+keywords = ["database","sql","macro"]
+categories = ["database"]
+repository = "https://github.com/quietboil/include-sql"
+homepage = "https://github.com/quietboil/include-sql"
+readme = "README.md"
+
+[dependencies]
