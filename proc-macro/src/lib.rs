@@ -39,7 +39,7 @@
 //! # Features
 //!
 //! The basis of using SQL employed by `include-sql` was inspired by [Yesql](https://github.com/krisajenkins/yesql).
-//! However `include-sql` is not a Yesql implementated in Rust as there is one key difference - `include-sql`
+//! However `include-sql` is not a Yesql implemented in Rust as there is one key difference - `include-sql`
 //! *assists* in using externally defined SQL, but it offloads the actual work to the database interface. Unlike Yesql
 //! it does not generate functions that abstract database access.
 //!

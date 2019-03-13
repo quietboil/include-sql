@@ -2,11 +2,11 @@
 
 **include-sql** is a macro for *using* SQL from Rust.
 
-**include-sql** was inspired by [Yesql](https://github.com/krisajenkins/yesql). However **include-sql** is not a Yesql implementated in Rust as there is one key difference - **include-sql** *assists* in using externally defined SQL, but it offloads the actual work to the database interface. Unlike Yesql it does not generate functions that abstract database access.
+include-sql was inspired by [Yesql](https://github.com/krisajenkins/yesql). However *include-sql* is not a Yesql implemented in Rust as there is one key difference - *include-sql* *assists* in using externally defined SQL, but it offloads the actual work to the database interface. Unlike Yesql it does not generate functions that abstract database access.
 
 ## Features
 
-Most of **include-sql** features are derivatives of the Yesql approach to deal with the SQL:
+Most of *include-sql* features are derivatives of the Yesql approach to deal with the SQL:
 - SQL and Rust are kept separately. This usually improves maintainability of both code bases.
 - The SQL parameters are named even for databases that do not support them natively.
  
@@ -15,7 +15,7 @@ Some of the features are specific to Rust:
 
 ## Usage
 
-Add **include-sql** as a dependency:
+Add *include-sql* as a dependency:
 ```toml
 [dependencies]
 include-sql = "0.1"
@@ -39,7 +39,7 @@ Start with the SQL.
   WHERE ship_id = :ship
     AND rank IN (:ranks)
  ```
-The SQL file might contain one or more SQL statements. Usually all of them are named - see the meta-comment `name:` line. However the top one can remain unnamed. **include-sql** will use the name of the file itself to give it a name. This is mostly useful when there is only one statement in the included SQL file.
+The SQL file might contain one or more SQL statements. Usually all of them are named - see the meta-comment `name:` lines. However the top one can remain unnamed. *include-sql* will use the name of the file itself to give it a name. This is mostly useful when there is only one statement in the included SQL file.
 
 Let's assume the above file is stored alongside the `.rs` that is using it and both are named `crew`. Include this SQL into the module that will execute these queries:
 ```rust
@@ -55,7 +55,7 @@ There are 2 important points that the example above shows:
    - The second one is a prefix that is used by the database to mark positional parameters. For example, SQLite uses `?`, Postgres - `$`, Oracle - `:`.
 2. The generated code expects that the database interface provides a trait to convert Rust values into database values. It also expects that it can refer to that trait by the `ToSql` name. Thus the appropriate trait needs to be brought into scope and maybe renamed via `as` into `ToSql`.
 
-As the SQL is being imported **include-sql** generates the following code:
+As the SQL is being imported *include-sql* generates the following code:
 1. The `&str` const that is named after the included statement and contains a pre-processed text of the statement - named arguments are replaced with the positional ones. Using the first statement from the `crew.sql`:
 ```rust
 const SELECT_SHIP_CREW : &str = "SELECT id, name, rank FROM sailors WHERE ship_id = ?1";
