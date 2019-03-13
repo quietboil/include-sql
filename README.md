@@ -98,7 +98,7 @@ fn print_ship_crew(conn: &Connection, ship_id: i32) -> Result<()> {
 }
 ```
 
-The second query is a bit different. As it uses the `IN (:list)` parameter it cannot be prepared from a static string becuase the length of that list and consequently the number of argument placeholders is not known until run time. These argument structs for these statements therefore implement neither `IntoIterator` trait, nor the macros to make slices. Instead they implement the `into_sql_with_args` method that returns a tuple with 2 elements - the generated SQL and the slice of ordered arguments.
+The second query is a bit different. As it uses the `IN (:list)` parameter it cannot be prepared from a static string because the length of that list and consequently the number of argument placeholders is not known until run time. The argument structs for statements with `IN (:list_` parameters therefore implement neither `IntoIterator` trait, nor the macros to make slices. Instead they provide the `into_sql_with_args` method that returns a tuple with 2 elements - the generated SQL and the slice of ordered arguments.
 
 Let's see this in the next example:
 ```rust
@@ -118,8 +118,10 @@ for row in rows {
 }
 ```
 
+## Library Examples
+
 There is also a recurring demo in the `examples` directory. It is more or less the same application, but implemented for 4 different database interfaces.
-> Note that to run a demo all except SQLite, which is created in memory, need access to a runnint database with a precreated user/schema. Both Oracle examples need 3 arguments - user, password and connect ID. For example, to run the `oracle` example, you would execute:
+> Note that to run a demo all examples except SQLite, which is created in memory, need access to a running database with a precreated user/schema. Both Oracle examples need 3 arguments - user, password and connect ID. For example, to run the `oracle` example, you would execute:
 ```sh
 $ cargo run --example oracle -- user pass //host:port/svc
 ```
