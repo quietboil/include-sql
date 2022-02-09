@@ -1,3 +1,7 @@
+[![crates.io](https://img.shields.io/crates/v/include-sql)](https://crates.io/crates/include-sql)
+[![Documentation](https://docs.rs/include-sql/badge.svg)](https://docs.rs/include-sql)
+![MIT](https://img.shields.io/crates/l/include-sql.svg)
+
 **include-sql** is a macro for *using* SQL in Rust.
 
 include-sql was inspired by [Yesql][1]. It allows the programmer to write SQL queries in SQL, keep them separate from the Rust code, and easily embed them into Rust programs via the proc-macro that this library provides.
