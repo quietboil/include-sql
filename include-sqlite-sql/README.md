@@ -153,7 +153,7 @@ Then the signature of the generated method would be:
 ```rust , ignore
 /// Returns the list of books loaned to a patron
 fn get_loaned_books<F>(&self, user_id: impl rusqlite::ToSql, row_callback: F) -> rusqlite::Result<()>
-where F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<()>;
+where F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<()>;
 ```
 
 [1]: https://crates.io/crates/include-sql

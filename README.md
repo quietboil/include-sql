@@ -6,7 +6,7 @@ All by itself include-sql actually does very little - it reads and parses SQL fi
 
 # Example
 
-As include-sql is not intended to be used directly, to illustrate of the entire workflow we'll use [include-sqlite-sql][3].
+As include-sql is not intended to be used directly, to illustrate the workflow we'll use [include-sqlite-sql][3].
 
 Include `include-sqlite-sql` as a dependency:
 
@@ -44,7 +44,7 @@ And then use it in Rust as:
 use include_sqlite_sql::{include_sql, impl_sql};
 use rusqlite::{Result, Connection};
 
-include_sql!("sql/library.sql");
+include_sql!("src/library.sql");
 
 fn main() -> Result<()> {
     let args : Vec<String> = std::env::args().collect();
@@ -67,7 +67,7 @@ fn main() -> Result<()> {
 
 # Under the Hood
 
-After parsing and validating content of the SQL file `include-sql` generates the following call:
+After parsing and validating the content of the SQL file `include-sql` generates the following call:
 
 ```rust , ignore
 impl_sql!{ LibrarySql =
@@ -102,7 +102,7 @@ trait LibrarySql {
 }
 ```
 
-And of course it also implements the trait:
+And, of course, it also implements the trait:
 
 ```rust , ignore
 impl LibrarySql for rusqlite::Connection {
@@ -112,7 +112,7 @@ impl LibrarySql for rusqlite::Connection {
 
 # Documentation
 
-The included [documentation][5] describes the supported SQL file format and provides instruction on writing your own `impl_sql` macro.
+The included [documentation][5] describes the supported SQL file format and provides instructions on writing your own `impl_sql` macro.
 
 [1]: https://github.com/krisajenkins/yesql
 [2]: https://crates.io/crates/include-postgres-sql
