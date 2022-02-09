@@ -1,2 +1,3 @@
 [workspace]
-members = ["proc-macro","helper"]
+members = ["main"]
+exclude = ["include-sqlite-sql", "include-postgres-sql"]
