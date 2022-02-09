@@ -120,7 +120,7 @@ Where:
 For DELETE, INSERT, and UPDATE statements that return data via `RETURNING` clause like:
 
 ```sql
--- name: add_new_book>
+-- name: add_new_book->
 -- param: isbn: &str
 -- param: book_title: &str
 INSERT INTO library (isbn, book_title)
