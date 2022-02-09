@@ -156,5 +156,5 @@ where F: Fn(postgres::Row) -> Result<(),postgres::Error>;
 
 [1]: https://crates.io/crates/include-sql
 [2]: https://crates.io/crates/postgres
-[4]: https://doc.rust-lang.org/proc_macro/struct.SourceFile.html
-[3]: https://quietboil.github.io/include-sql
+[3]: https://doc.rust-lang.org/proc_macro/struct.SourceFile.html
+[4]: https://quietboil.github.io/include-sql

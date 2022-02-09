@@ -1,5 +1,8 @@
+#![cfg_attr(docsrs, doc = include_str!("../README.md"))]
+
 pub use include_sql::include_sql;
 
+/// Generates Rust code to use included SQL.
 #[macro_export]
 macro_rules! impl_sql {
     ( $sql_name:ident = $( { $kind:tt $name:ident ($($variant:tt $param:ident $ptype:tt)*) $doc:literal $s:tt $( $text:tt )+ } ),+ ) => {

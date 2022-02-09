@@ -1,11 +1,11 @@
 [package]
 name = "include-sqlite-sql"
 description = "A Yesql inspired macro for using SQLite SQL in Rust"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Alex Demenchuk <alexander.demenchuk@gmail.com>"]
 edition = "2018"
 license = "MIT"
-keywords = ["database","sql","macro"]
+keywords = ["database","sql","macro","sqlite"]
 categories = ["database"]
 repository = "https://github.com/quietboil/include-sql"
 homepage = "https://github.com/quietboil/include-sql"

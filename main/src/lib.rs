@@ -61,6 +61,9 @@ Where:
 * `$` is a helper token that could be used to generate repetitions if generated artifacts are macros.
 
 > **Note** that types are passed as parenthesized types. This is done to allow `impl_sql` match them as token trees. If a parameter type is not defined in SQL, `_` will be used in its place (this `_` drives the need to match parameter types as token trees) for which `impl_sql` is expected to generate an appropriate generic type.
+
+[1]: https://crates.io/crates/include-postgres-sql
+[2]: https://crates.io/crates/include-sqlite-sql
 */
 #[proc_macro]
 pub fn include_sql(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
