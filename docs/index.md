@@ -78,7 +78,7 @@ Statements should be terminated with semicolons. However, this is optional as th
 
 For the SQL above include-sql would generate:
 
-```rust , ignore
+```rust
 impl_sql!{ LibrarySql =
   {
     ? get_loaned_books (:user_id (&str)) 
