@@ -12,14 +12,14 @@ All by itself include-sql actually does very little - it reads and parses SQL fi
 
 As include-sql is not intended to be used directly, to illustrate the workflow we'll use [include-sqlite-sql][3].
 
-Include `include-sqlite-sql` as a dependency:
+Add `include-sqlite-sql` as a dependency:
 
 ```toml
 [dependencies]
 include-sqlite-sql = "0.1"
 ```
 
-Write your SQL and save it in a file. For example, let's say the following is the content of the `library.sql` file that is saved in the project's `src` folder:
+Write your SQL and save it in a file. For example, let's say the following is saved as `library.sql` in the project's `src` folder:
 
 ```sql
 -- name: get_loaned_books?
@@ -76,12 +76,12 @@ After parsing and validating the content of the SQL file `include-sql` generates
 ```rust , ignore
 impl_sql!{ LibrarySql =
   {
-    ? get_loaned_books (:user_id (&str)) 
+    ? get_loaned_books (:user_id (&str))
     " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
     $ "SELECT book_title\n  FROM library\n WHERE loaned_to = " :user_id "\n ORDER BY 1"
   },
   {
-    ! loan_books (:user_id (&str) #book_ids (u32)) 
+    ! loan_books (:user_id (&str) #book_ids (u32))
     " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
     $ "UPDATE library\n   SET loaned_to = " :user_id "\n,     loaned_on = current_timestamp\n WHERE book_id IN (" #book_ids ")"
   }

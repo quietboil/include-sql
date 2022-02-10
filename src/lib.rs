@@ -34,7 +34,8 @@ UPDATE library SET loaned_to = :user_id, loaned_on = current_timestamp WHERE boo
 
 This method would generate:
 
-```rust,ignore
+```rust,no_run
+# macro_rules! impl_sql { ($($t:tt)+) => {}; }
 impl_sql!{ LibrarySql =
   {
     ? get_loaned_books (:user_id (&str))
@@ -126,7 +127,9 @@ fn output_include_bytes(file_path: &str, tokens: &mut TokenStream) {
 }
 
 /**
-Finds the specified item (`ident`) in a list (of `idents`). Returns the item's index offset by the number after `+`.
+Finds the specified item (`ident`) in a list (of `idents`).
+
+Returns the item's index offset by the number after `+`.
 
 ```
 let idx = include_sql::index_of!(id in [name, flag, id] + 1);
@@ -167,7 +170,9 @@ impl Parse for IndexOfArgs {
 }
 
 /**
-Converts an `ident` into a camel-case `ident` using the followng rules:
+Converts an `ident` into a camel-case `ident`.
+
+Conversion uses the followng rules:
 - First character is capitalized
 - Underscores are removed
 - Character that used to follow the removed underscore is capitalized
@@ -184,7 +189,9 @@ pub fn to_camel_case(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 }
 
 /**
-Converts an `ident` into a snake-case `ident` using the following rules:
+Converts an `ident` into a snake-case `ident`.
+
+Conversion uses the followng rules:
 - Leading and trailing underscores are removed
 - All letters are lowered
 - An underscore is inserted before a letter (except before the first one):

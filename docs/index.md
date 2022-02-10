@@ -1,6 +1,6 @@
 # Usage
 
-If you decided to write your own `impl_sql`, you would need to include `include-sql` as a dependency:
+When you write your own `impl_sql`, you would need to add `include-sql` as a dependency:
 
 ```toml
 [dependencies]
@@ -23,7 +23,7 @@ include_sql!("src/queries.sql");
 
 # Anatomy of the Included SQL File
 
-For illustration, let's assume that the following file is called `library.sql`:
+Let's assume that we created the following file and saved it as `library.sql`:
 
 ```sql
 -- name: get_loaned_books?
@@ -44,7 +44,7 @@ UPDATE library
    SET loaned_to = :user_id
      , loaned_on = current_timestamp 
  WHERE book_id IN (:book_ids)   -- Note that :book_ids names a collection
-                                -- of values rather than a single one
+                                -- of values rather than a single value
 ;
 ```
 
@@ -54,7 +54,7 @@ An SQL file can include one or more SQL statements. Each statement must have a p
 
 > **Note** that include-sql will use the name as-is. If you want to avoid Rust complaining about it, use the appropriate (snake) case for it.
 
-* `?` or `!` is a mandatory statement variant tag. It directs `impl_sql` to generate a specific implementation. This tag can be any sequence of Rust punctuation characters as long as they form a valid Rust [token][4].
+* `?` or `!` is a mandatory statement variant tag. It directs `impl_sql` to generate a specific implementation. This tag can be any sequence of Rust punctuation characters as long as they represent a single valid Rust punctuation [token][4].
 
 > For example, [include-postgres-sql][1] and [include-sqlite-sql][2] recognize `?`, `!`, and `->` tags. For `? they generate methods that process selected rows, for `!` - methods that execute all other - non-select - statements, and for `->` - methods that read data from `RETURNING` statements.
 
