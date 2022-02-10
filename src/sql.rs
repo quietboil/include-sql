@@ -21,6 +21,7 @@ static TAIL_COMMENT : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*--").expect("li
 static STMT_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*name:\s*([[:alpha:]][[:word:]]*)([!#$%&*+./:<=>?@^|~-]*)").expect("statement name pattern"));
 static STMT_PARAM   : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*param:\s*([[:alpha:]][[:word:]]*)\s*:\s*(\S+)\s*(.*)").expect("statement parameter pattern"));
 static BIND_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\b[Ii][Nn]\s*\(\s*(:[[:alpha:]][[:word:]]*)\s*\)|(:[[:alpha:]][[:word:]]*)").expect("parameter placeholder pattern"));
+static INTO_TOKEN   : Lazy<Regex> = Lazy::new(|| Regex::new(r"^(?:[@,#$?;~_.]|[+^/*!%]=?|&[&=]?|=[=>]?|>[>=]?|<[<=-]?|[|][=|]?|-[=>]?|::?|[.][.][.=]?|>>=|<<=)$").expect("punctuation token pattern"));
 
 fn parse_text(text: &str) -> Vec<Stmt> {
     let mut stmt_list = Vec::new();
@@ -122,10 +123,12 @@ fn check_stmt_names(stmt_list: &[Stmt]) -> Result<()> {
                     StmtItem::Bind(name) => String::from(":") + &name,
                     StmtItem::List(name) => String::from(":") + &name,
                 };
-                return Err(err::new(format!("statement {}... must have a name", text)));
+                return Err(err::new(format!("statement `{}...` must have a name", text)));
             }
             if stmt.into.is_empty() {
-                return Err(err::new(format!("statement {} must have a variant tag", &stmt.name)));
+                return Err(err::new(format!("statement `{}` must have a variant selector", &stmt.name)));
+            } else if !INTO_TOKEN.is_match(&stmt.into) {
+                return Err(err::new(format!("statement `{}` variant selector `{}` is not a single punctuation token", &stmt.name, &stmt.into)));
             }
         }
     }
@@ -322,7 +325,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "statement SELECT Count(*) FROM some_table WHERE num_column > 0... must have a name")]
+    #[should_panic(expected = "statement `SELECT Count(*) FROM some_table WHERE num_column > 0...` must have a name")]
     fn parse_unnamed_stmt() {
         use super::parse;
 
@@ -336,12 +339,24 @@ SELECT Count(*) FROM some_table WHERE num_column > 0;
     }
 
     #[test]
-    #[should_panic(expected = "statement select_something must have a variant tag")]
+    #[should_panic(expected = "statement `select_something` must have a variant selector")]
     fn parse_no_variant_stmt() {
         use super::parse;
 
         let text = "
 -- name: select_something
+SELECT something FROM somewhere WHERE col = :val;
+        ";
+        parse(text, "unnamed_statement").unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "statement `select_something` variant selector `>?` is not a single punctuation token")]
+    fn parse_bad_variant_stmt() {
+        use super::parse;
+
+        let text = "
+-- name: select_something>?
 SELECT something FROM somewhere WHERE col = :val;
         ";
         parse(text, "unnamed_statement").unwrap();
@@ -571,5 +586,63 @@ INSERT INTO invoice (InvoiceId, CustomerId, InvoiceDate, Total) VALLUES (:Invoic
             }
             _ => { panic!("unexpected {:?}", &stmt_items[1]); }
         }
+    }
+    
+    #[test]
+    fn into_token() {
+        use super::INTO_TOKEN;
+
+        assert!(INTO_TOKEN.is_match("+"));
+        assert!(INTO_TOKEN.is_match("+="));
+        assert!(INTO_TOKEN.is_match("&"));
+        assert!(INTO_TOKEN.is_match("&&"));
+        assert!(INTO_TOKEN.is_match("&="));
+        assert!(INTO_TOKEN.is_match("@"));
+        assert!(INTO_TOKEN.is_match("!"));
+        assert!(INTO_TOKEN.is_match("^"));
+        assert!(INTO_TOKEN.is_match("^="));
+        assert!(INTO_TOKEN.is_match(":"));
+        assert!(INTO_TOKEN.is_match("::"));
+        assert!(INTO_TOKEN.is_match(","));
+        assert!(INTO_TOKEN.is_match("/"));
+        assert!(INTO_TOKEN.is_match("/="));
+        assert!(INTO_TOKEN.is_match("$"));
+        assert!(INTO_TOKEN.is_match("."));
+        assert!(INTO_TOKEN.is_match(".."));
+        assert!(INTO_TOKEN.is_match("..."));
+        assert!(INTO_TOKEN.is_match("..="));
+        assert!(INTO_TOKEN.is_match("="));
+        assert!(INTO_TOKEN.is_match("=="));
+        assert!(INTO_TOKEN.is_match(">="));
+        assert!(INTO_TOKEN.is_match(">"));
+        assert!(INTO_TOKEN.is_match("<="));
+        assert!(INTO_TOKEN.is_match("<"));
+        assert!(INTO_TOKEN.is_match("*="));
+        assert!(INTO_TOKEN.is_match("!="));
+        assert!(INTO_TOKEN.is_match("|"));
+        assert!(INTO_TOKEN.is_match("|="));
+        assert!(INTO_TOKEN.is_match("||"));
+        assert!(INTO_TOKEN.is_match("#"));
+        assert!(INTO_TOKEN.is_match("?"));
+        assert!(INTO_TOKEN.is_match("->"));
+        assert!(INTO_TOKEN.is_match("<-"));
+        assert!(INTO_TOKEN.is_match("%"));
+        assert!(INTO_TOKEN.is_match("%="));
+        assert!(INTO_TOKEN.is_match("=>"));
+        assert!(INTO_TOKEN.is_match(";"));
+        assert!(INTO_TOKEN.is_match("<<"));
+        assert!(INTO_TOKEN.is_match("<<="));
+        assert!(INTO_TOKEN.is_match(">>"));
+        assert!(INTO_TOKEN.is_match(">>="));
+        assert!(INTO_TOKEN.is_match("*"));
+        assert!(INTO_TOKEN.is_match("-"));
+        assert!(INTO_TOKEN.is_match("-="));
+        assert!(INTO_TOKEN.is_match("~"));
+        assert!(INTO_TOKEN.is_match("_"));
+
+        assert!(!INTO_TOKEN.is_match("!>"));
+        assert!(!INTO_TOKEN.is_match(":>"));
+        assert!(!INTO_TOKEN.is_match("?!"));
+        assert!(!INTO_TOKEN.is_match("!?"));
     }
 }
