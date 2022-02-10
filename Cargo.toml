@@ -1,3 +1,21 @@
-[workspace]
-members = ["main"]
-exclude = ["include-sqlite-sql", "include-postgres-sql"]
+[package]
+name = "include-sql"
+description = "A Yesql inspired macro for using SQL in Rust"
+version = "0.2.1"
+authors = ["Alex Demenchuk <alexander.demenchuk@gmail.com>"]
+edition = "2018"
+license = "MIT"
+keywords = ["database","sql","macro"]
+categories = ["database"]
+repository = "https://github.com/quietboil/include-sql"
+homepage = "https://quietboil.github.io/include-sql"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn         = "1.0"
+proc-macro2 = "1.0"
+quote       = "1.0"
+once_cell   = "1.9"
+regex       = "1.5"
