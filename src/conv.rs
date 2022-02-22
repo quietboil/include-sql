@@ -60,6 +60,16 @@ pub(super) fn to_snake_case(in_name: &str) -> String {
     out_name
 }
 
+pub(crate) trait StringExt {
+    fn to_camel_case(&self) -> String;
+}
+
+impl StringExt for str {
+    fn to_camel_case(&self) -> String {
+        self::to_camel_case(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

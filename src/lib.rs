@@ -61,7 +61,7 @@ Where:
 * The following `(&str)` and `(usize)` are Rust parameter types as declared in the SQL.
 * `$` is a helper token that could be used to generate repetitions if generated artifacts are macros.
 
-> **Note** that types are passed as parenthesized types. This is done to allow `impl_sql` match them as token trees. If a parameter type is not defined in SQL, `_` will be used in its place (this `_` drives the need to match parameter types as token trees) for which `impl_sql` is expected to generate an appropriate generic type.
+> **Note** that `param:` types are passed as parenthesized types. This is done to allow `impl_sql` match them as token trees. If a parameter type is not defined in SQL, `_` will be used in its place (this `_` drives the need to match parameter types as token trees) for which `impl_sql` is expected to generate an appropriate generic type.
 
 [1]: https://crates.io/crates/include-postgres-sql
 [2]: https://crates.io/crates/include-sqlite-sql
@@ -167,43 +167,4 @@ impl Parse for IndexOfArgs {
         let stmt_params = param_list.parse_terminated(syn::Ident::parse)?;
         Ok(Self { param_name, stmt_params, start_index })
     }
-}
-
-/**
-Converts an `ident` into a camel-case `ident`.
-
-Conversion uses the followng rules:
-- First character is capitalized
-- Underscores are removed
-- Character that used to follow the removed underscore is capitalized
-- Other charactes are left unchanged
-*/
-#[proc_macro]
-pub fn to_camel_case(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let in_arg = syn::parse_macro_input!(input as syn::Ident);
-    let in_name = in_arg.to_string();
-    let out_name = conv::to_camel_case(&in_name);
-    let mut tokens = TokenStream::new();
-    tokens.append(Ident::new(&out_name, in_arg.span()));
-    tokens.into()
-}
-
-/**
-Converts an `ident` into a snake-case `ident`.
-
-Conversion uses the followng rules:
-- Leading and trailing underscores are removed
-- All letters are lowered
-- An underscore is inserted before a letter (except before the first one):
-  - if it used to be an uppercase one and
-  - if it does not already have an underscore in front of it
-*/
-#[proc_macro]
-pub fn to_snake_case(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let in_arg = syn::parse_macro_input!(input as syn::Ident);
-    let in_name = in_arg.to_string();
-    let out_name = conv::to_snake_case(&in_name);
-    let mut tokens = TokenStream::new();
-    tokens.append(Ident::new(&out_name, in_arg.span()));
-    tokens.into()
 }

@@ -64,7 +64,7 @@ An SQL file can include one or more SQL statements. Each statement must have a p
 
 > **Note** that include-sql expects `parameter_type` to be a Rust [type][3] and will fail if it cannot be parsed as such.
 
-> **Note** that because `param:` is optional `include-sql` will create a synthetic parameter description using an inferred type `_` for those SQL parameters that are not explicitly described by `param:`. `impl_sql` must be prepared to handle cases when a parameter type should be inferred and generate method parameter that is typed generically. See [include-postgres-sql][1] or [include-sqlite-sql][2] for an example of how it can be done.
+> **Note** that because `param:` is optional for parameters that are not explicitly described by `param:` `include-sql` will create a synthetic parameter description using an inferred type `_` for scalar SQL parameters or synthetic generic type `[GenericType]` for IN list parameters. `impl_sql` must be prepared to handle cases when a parameter type should be inferred and generate method parameter that is typed generically. See [include-postgres-sql][1] or [include-sqlite-sql][2] for an example of how it can be done.
 
 * The rest of the statement doc-comment lines are gathered together to form a Rust doc-comment text for the generated method.
 

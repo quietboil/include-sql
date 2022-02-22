@@ -1,6 +1,7 @@
 use proc_macro2::{TokenStream, Span, Group, Delimiter, Literal, Ident, Punct, Spacing};
 use quote::{ToTokens, TokenStreamExt};
 use crate::sql::{IncludedSql, Stmt, StmtItem};
+use crate::conv::StringExt;
 
 impl ToTokens for IncludedSql {
     fn to_tokens(&self, tokens: &mut TokenStream) {
@@ -8,7 +9,7 @@ impl ToTokens for IncludedSql {
         tokens.append(Punct::new('!', Spacing::Alone));
 
         let mut macro_args = TokenStream::new();
-        let mut name = crate::conv::to_camel_case(&self.file_name);
+        let mut name = self.file_name.to_camel_case(); // crate::conv::to_camel_case(&self.file_name);
         name.push_str("Sql");
         macro_args.append(Ident::new(&name, Span::call_site()));
         macro_args.append(Punct::new('=', Spacing::Alone));
@@ -34,30 +35,43 @@ impl ToTokens for Stmt {
         let mut stmt_params = TokenStream::new();
         for param in self.unique_binds() {
             match param {
-                StmtItem::Bind(_) => {
+                StmtItem::Bind(name) => {
                     stmt_params.append(Punct::new(':', Spacing::Alone));
-                },
-                StmtItem::List(_) => {
-                    stmt_params.append(Punct::new('#', Spacing::Alone));
-                },
-                _ => {},
-            }
-            match param {
-                StmtItem::Bind(name) | StmtItem::List(name) => {
                     stmt_params.append(Ident::new(name, Span::call_site()));
-
-                    if let Some(param_type) = self.params.get(name) {
-                        if let Ok(param_type) = syn::parse_str::<syn::Type>(param_type) {
+                    let type_tree = self.params.get(name)
+                        .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
+                        .map(|param_type| {
                             let mut type_tokens = TokenStream::new();
                             param_type.to_tokens(&mut type_tokens);
-                            stmt_params.append(Group::new(Delimiter::Parenthesis, type_tokens));
-                        } else {
-                            stmt_params.append(Ident::new("_", Span::call_site()));
-                        }
+                            Group::new(Delimiter::Parenthesis, type_tokens)
+                        })
+                    ;
+                    if let Some(tt) = type_tree {
+                        stmt_params.append(tt);
                     } else {
                         stmt_params.append(Ident::new("_", Span::call_site()));
                     }
-                }
+                },
+                StmtItem::List(name) => {
+                    stmt_params.append(Punct::new('#', Spacing::Alone));
+                    stmt_params.append(Ident::new(name, Span::call_site()));
+                    let type_tree = self.params.get(name)
+                        .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
+                        .map(|param_type| {
+                            let mut type_tokens = TokenStream::new();
+                            param_type.to_tokens(&mut type_tokens);
+                            Group::new(Delimiter::Parenthesis, type_tokens)
+                        })
+                    ;
+                    if let Some(tt) = type_tree {
+                        stmt_params.append(tt);
+                    } else {
+                        let type_name = name.to_camel_case();
+                        let mut type_tokens = TokenStream::new();
+                        type_tokens.append(Ident::new(&type_name, Span::call_site()));
+                        stmt_params.append(Group::new(Delimiter::Bracket, type_tokens));
+                    }
+                },
                 _ => {},
             }
         }
