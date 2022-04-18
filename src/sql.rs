@@ -125,9 +125,7 @@ fn check_stmt_names(stmt_list: &[Stmt]) -> Result<()> {
                 };
                 return Err(err::new(format!("statement `{}...` must have a name", text)));
             }
-            if stmt.into.is_empty() {
-                return Err(err::new(format!("statement `{}` must have a variant selector", &stmt.name)));
-            } else if !INTO_TOKEN.is_match(&stmt.into) {
+            if !INTO_TOKEN.is_match(&stmt.into) {
                 return Err(err::new(format!("statement `{}` variant selector `{}` is not a single punctuation token", &stmt.name, &stmt.into)));
             }
         }
@@ -180,7 +178,7 @@ pub(crate) enum StmtItem {
 impl Stmt {
     fn new(name: Option<String>, into: Option<String>, params: HashMap<String,String>, stmt_text: &str, stmt_docs: &str) -> Self {
         let name = name.unwrap_or_default();
-        let into = into.unwrap_or_default();
+        let into = into.unwrap_or_else(|| "!".to_string());
         let items = Self::parse_text(stmt_text);
         let docs = if stmt_docs.is_empty() { None } else { Some(stmt_docs.to_string()) };
         Self { name, params, into, docs, items }
@@ -339,15 +337,18 @@ SELECT Count(*) FROM some_table WHERE num_column > 0;
     }
 
     #[test]
-    #[should_panic(expected = "statement `select_something` must have a variant selector")]
     fn parse_no_variant_stmt() {
         use super::parse;
 
         let text = "
--- name: select_something
-SELECT something FROM somewhere WHERE col = :val;
+-- name: update_something
+UPDATE something SET a_thing = :VAL WHERE col = :COL_VAL;
         ";
-        parse(text, "unnamed_statement").unwrap();
+        let sql = parse(text, "unnamed_statement").unwrap();
+        assert_eq!(1, sql.stmt_list.len());
+        let stmt = &sql.stmt_list[0];
+        assert_eq!(stmt.name, "update_something");
+        assert_eq!(stmt.into, "!");
     }
 
     #[test]
@@ -514,7 +515,7 @@ SELECT *
     #[test]
     fn unique_binds() {
         let text = "
--- name: unique_binds!
+-- name: unique_binds
 INSERT INTO some_table VALUES (:v1, :v2, :v3, :v1, :v3, :v1, :v2, :v4, :v3, :v1);
         ";
         let sql = super::parse(text, "find_unique_parameter_names").unwrap();
@@ -587,7 +588,7 @@ INSERT INTO invoice (InvoiceId, CustomerId, InvoiceDate, Total) VALLUES (:Invoic
             _ => { panic!("unexpected {:?}", &stmt_items[1]); }
         }
     }
-    
+
     #[test]
     fn into_token() {
         use super::INTO_TOKEN;

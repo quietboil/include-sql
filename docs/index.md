@@ -30,19 +30,19 @@ Let's assume that we created the following file and saved it as `library.sql`:
 -- Returns the list of books loaned to a patron
 -- # Parameters
 -- param: user_id: &str - user ID
-SELECT book_title 
-  FROM library 
- WHERE loaned_to = :user_id 
+SELECT book_title
+  FROM library
+ WHERE loaned_to = :user_id
  ORDER BY 1;
 
--- name: loan_books!
+-- name: loan_books
 -- Updates the book records to reflect loan to a patron
 -- # Parameters
 -- param: user_id: &str - user ID
 -- param: book_ids: u32 - book IDs
-UPDATE library 
+UPDATE library
    SET loaned_to = :user_id
-     , loaned_on = current_timestamp 
+     , loaned_on = current_timestamp
  WHERE book_id IN (:book_ids)   -- Note that :book_ids names a collection
                                 -- of values rather than a single value
 ;
@@ -54,7 +54,7 @@ An SQL file can include one or more SQL statements. Each statement must have a p
 
 > **Note** that include-sql will use the name as-is. If you want to avoid Rust complaining about it, use the appropriate (snake) case for it.
 
-* `?` or `!` is a mandatory statement variant tag. It directs `impl_sql` to generate a specific implementation. This tag can be any sequence of Rust punctuation characters as long as they represent a single valid Rust punctuation [token][4].
+* `?` is a statement variant tag. It directs `impl_sql` to generate a specific implementation. This tag can be any sequence of Rust punctuation characters as long as they represent a single valid Rust punctuation [token][4]. This tag is optional. When it is absent, an implicit `!` will be passed to the `impl_sql` macro.
 
 > For example, [include-postgres-sql][1] and [include-sqlite-sql][2] recognize `?`, `!`, and `->` tags. For `? they generate methods that process selected rows, for `!` - methods that execute all other - non-select - statements, and for `->` - methods that read data from `RETURNING` statements.
 
@@ -81,12 +81,12 @@ For the SQL above include-sql would generate:
 ```rust
 impl_sql!{ LibrarySql =
   {
-    ? get_loaned_books (:user_id (&str)) 
+    ? get_loaned_books (:user_id (&str))
     " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
     $ "SELECT book_title\n  FROM library\n WHERE loaned_to = " :user_id "\n ORDER BY 1"
   },
   {
-    ! loan_books (:user_id (&str) #book_ids (u32)) 
+    ! loan_books (:user_id (&str) #book_ids (u32))
     " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
     $ "UPDATE library\n   SET loaned_to = " :user_id "\n,     loaned_on = current_timestamp\n WHERE book_id IN (" #book_ids ")"
   }
