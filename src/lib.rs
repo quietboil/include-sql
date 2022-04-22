@@ -63,6 +63,54 @@ Where:
 
 > **Note** that `param:` types are passed as parenthesized types. This is done to allow `impl_sql` match them as token trees. If a parameter type is not defined in SQL, `_` will be used in its place (this `_` drives the need to match parameter types as token trees) for which `impl_sql` is expected to generate an appropriate generic type.
 
+## Async
+
+When include-sql is built with the `async` feature, `impl_sql` macro will be generated with additional lifetimes for reference parameters.
+For example, the above `LibrarySql` example will look like this:
+
+```rust,no_run
+# macro_rules! impl_sql { ($($t:tt)+) => {}; }
+impl_sql!{ LibrarySql =
+  {
+    ? get_loaned_books (:user_id ('user_id &str))
+    " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
+    $ "SELECT book_title FROM library WHERE loaned_to = " :user_id "ORDER BY 1"
+  },
+  {
+    ! loan_books (:user_id ('user_id &str) #book_ids ('book_ids usize))
+    " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
+    $ "UPDATE library SET loaned_to = " :user_id ", loaned_on = current_timestamp WHERE book_id IN ( " #book_ids " )"
+  }
+}
+```
+
+**Note** that for IN list parameters where the list item is a reference itself additional lifetime that covers list items is also generated.
+For example, for this query:
+
+```sql
+-- name: get_users_who_loaned_books?
+-- Returns names patrons that at one time or another have loaned specified books
+-- # Parameters
+-- param: book_titles: &str - book titles
+SELECT DISTINCT first_name, last_name
+  FROM patrons
+  JOIN library ON library.loaned_to = patrons.user_id
+ WHERE book_title IN (:book_titles);
+```
+
+include-sql will generate:
+
+```rust,no_run
+# macro_rules! impl_sql { ($($t:tt)+) => {}; }
+impl_sql!{ LibrarySql =
+  {
+    ? get_users_who_loaned_books (#book_titles ('book_titles 'book_titles_item &str))
+    " Returns names patrons that at one time or another have loaned specified books\n # Parameters\n * `book_titles` - book titles"
+    $ "SELECT DISTINCT first_name, last_name  FROM patrons  JOIN library ON library.loaned_to = patrons.user_id WHERE book_title IN (" #book_titles ")"
+  }
+}
+```
+
 [1]: https://crates.io/crates/include-postgres-sql
 [2]: https://crates.io/crates/include-sqlite-sql
 */

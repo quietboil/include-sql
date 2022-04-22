@@ -6,7 +6,7 @@
 
 include-sql was inspired by [Yesql][1]. It allows the programmer to write SQL queries in SQL, keep them separate from the Rust code, and easily embed them into Rust programs via the proc-macro that this library provides.
 
-All by itself include-sql actually does very little - it reads and parses SQL file and transforms it into a call to the `impl_sql` macro. It is expected that `impl_sql` is provided either by the project that uses include-sql or by an external library. For example, there are several include-sql companion crates, like [include-postgres-sql][2] and [include-sqlite-sql][3], that implement `impl_sql`. They can simply be used directly if their approaches to embedding SQL are deemed appropriate and convenient. Alternatively, they can be used as a starting point when implementing your own `impl_sql`.
+All by itself include-sql actually does very little - it reads and parses SQL file and transforms it into a call to the `impl_sql` macro. It is expected that `impl_sql` is provided either by the project that uses include-sql or by an external library. For example, there are several include-sql companion crates, like [include-postgres-sql][2], [include-sqlite-sql][3], and [include-oracle-sql][6], that implement `impl_sql`. They can simply be used directly if their approaches to embedding SQL are deemed appropriate and convenient. Alternatively, they can be used as a starting point when implementing your own `impl_sql`.
 
 # Example
 
@@ -32,7 +32,7 @@ SELECT book_title
  ORDER BY 1;
 
 -- name: loan_books!
--- Updates the book records to reflect loan to a patron
+-- Updates the book record to reflect loan to a patron
 -- # Parameters
 -- param: user_id: &str - user ID
 -- param: book_ids: u32 - book IDs
@@ -123,3 +123,4 @@ The included [documentation][5] describes the supported SQL file format and prov
 [3]: https://crates.io/crates/include-sqlite-sql
 [4]: https://doc.rust-lang.org/proc_macro/struct.SourceFile.html
 [5]: https://quietboil.github.io/include-sql
+[6]: https://crates.io/crates/include-oracle-sql

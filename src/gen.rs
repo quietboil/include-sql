@@ -42,6 +42,10 @@ impl ToTokens for Stmt {
                         .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
                         .map(|param_type| {
                             let mut type_tokens = TokenStream::new();
+                            #[cfg(feature = "async")]
+                            if let syn::Type::Reference(_) = &param_type {
+                                lifetime(name).to_tokens(&mut type_tokens);
+                            }
                             param_type.to_tokens(&mut type_tokens);
                             Group::new(Delimiter::Parenthesis, type_tokens)
                         })
@@ -58,7 +62,16 @@ impl ToTokens for Stmt {
                     let type_tree = self.params.get(name)
                         .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
                         .map(|param_type| {
-                            let mut type_tokens = TokenStream::new();
+                            let mut type_tokens = TokenStream::new();                            
+                            #[cfg(feature = "async")] {
+                                lifetime(name).to_tokens(&mut type_tokens);
+                                if let syn::Type::Reference(_) = &param_type {
+                                    let mut item = String::with_capacity(name.len() + 5);
+                                    item.push_str(name);
+                                    item.push_str("_item");
+                                    lifetime(&item).to_tokens(&mut type_tokens);
+                                }
+                            }
                             param_type.to_tokens(&mut type_tokens);
                             Group::new(Delimiter::Parenthesis, type_tokens)
                         })
@@ -68,6 +81,8 @@ impl ToTokens for Stmt {
                     } else {
                         let type_name = name.to_camel_case();
                         let mut type_tokens = TokenStream::new();
+                        #[cfg(feature = "async")]
+                        lifetime(name).to_tokens(&mut type_tokens);
                         type_tokens.append(Ident::new(&type_name, Span::call_site()));
                         stmt_params.append(Group::new(Delimiter::Bracket, type_tokens));
                     }
@@ -105,4 +120,9 @@ impl ToTokens for StmtItem {
             }
         }
     }
+}
+
+#[cfg(feature = "async")]
+fn lifetime(name: &str) -> syn::Lifetime {
+    syn::Lifetime { apostrophe: Span::call_site(), ident: Ident::new(name, Span::call_site()) }
 }
