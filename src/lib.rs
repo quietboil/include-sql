@@ -22,14 +22,16 @@ For example, if the SQL file "library.sql" has these 2 statements:
 -- Returns the list of books loaned to a patron
 -- # Parameters
 -- param: user_id: &str - user ID
-SELECT book_title FROM library WHERE loaned_to = :user_id ORDER BY 1;
+SELECT book_title FROM library WHERE loaned_to = :user_id ORDER BY 1
+/
 
--- name: loan_books
+-- name: loan_books!
 -- Updates the book records to reflect loan to a patron
 -- # Parameters
--- param: user_id: &str - user ID
 -- param: book_ids: usize - book IDs
-UPDATE library SET loaned_to = :user_id, loaned_on = current_timestamp WHERE book_id IN ( :book_ids );
+-- param: user_id: &str - user ID
+UPDATE library SET loaned_to = :user_id, loaned_on = current_timestamp WHERE book_id IN ( :book_ids )
+/
 ```
 
 This method would generate:
@@ -38,14 +40,14 @@ This method would generate:
 # macro_rules! impl_sql { ($($t:tt)+) => {}; }
 impl_sql!{ LibrarySql =
   {
-    ? get_loaned_books (:user_id (&str))
+    ? get_loaned_books (: user_id (&str))
     " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
-    $ "SELECT book_title FROM library WHERE loaned_to = " :user_id "ORDER BY 1"
+    $ "SELECT book_title FROM library WHERE loaned_to = " : user_id "ORDER BY 1"
   },
   {
-    ! loan_books (:user_id (&str) #book_ids (usize))
+    ! loan_books (# book_ids (usize) : user_id (&str))
     " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
-    $ "UPDATE library SET loaned_to = " :user_id ", loaned_on = current_timestamp WHERE book_id IN ( " #book_ids " )"
+    $ "UPDATE library SET loaned_to = " : user_id ", loaned_on = current_timestamp WHERE book_id IN ( " # book_ids " )"
   }
 }
 ```
@@ -63,6 +65,8 @@ Where:
 
 > **Note** that `param:` types are passed as parenthesized types. This is done to allow `impl_sql` match them as token trees. If a parameter type is not defined in SQL, `_` will be used in its place (this `_` drives the need to match parameter types as token trees) for which `impl_sql` is expected to generate an appropriate generic type.
 
+> **Note** also that parameter order is defined by the `param` declarations. SQL parameters that are present in the SQL code, but that are not declared as one of the `param`s, will be follow the `param` parameters in the order they are found in the SQL code.
+
 ## Async
 
 When include-sql is built with the `async` feature, `impl_sql` macro will be generated with additional lifetimes for reference parameters.
@@ -72,14 +76,14 @@ For example, the above `LibrarySql` example will look like this:
 # macro_rules! impl_sql { ($($t:tt)+) => {}; }
 impl_sql!{ LibrarySql =
   {
-    ? get_loaned_books (:user_id ('user_id &str))
+    ? get_loaned_books (: user_id ('user_id &str))
     " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
-    $ "SELECT book_title FROM library WHERE loaned_to = " :user_id "ORDER BY 1"
+    $ "SELECT book_title FROM library WHERE loaned_to = " : user_id "ORDER BY 1"
   },
   {
-    ! loan_books (:user_id ('user_id &str) #book_ids ('book_ids usize))
+    ! loan_books (# book_ids ('book_ids usize) : user_id ('user_id &str))
     " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
-    $ "UPDATE library SET loaned_to = " :user_id ", loaned_on = current_timestamp WHERE book_id IN ( " #book_ids " )"
+    $ "UPDATE library SET loaned_to = " : user_id ", loaned_on = current_timestamp WHERE book_id IN ( " # book_ids " )"
   }
 }
 ```
@@ -104,9 +108,9 @@ include-sql will generate:
 # macro_rules! impl_sql { ($($t:tt)+) => {}; }
 impl_sql!{ LibrarySql =
   {
-    ? get_users_who_loaned_books (#book_titles ('book_titles 'book_titles_item &str))
+    ? get_users_who_loaned_books (# book_titles ('book_titles 'book_titles_item &str))
     " Returns names patrons that at one time or another have loaned specified books\n # Parameters\n * `book_titles` - book titles"
-    $ "SELECT DISTINCT first_name, last_name  FROM patrons  JOIN library ON library.loaned_to = patrons.user_id WHERE book_title IN (" #book_titles ")"
+    $ "SELECT DISTINCT first_name, last_name  FROM patrons  JOIN library ON library.loaned_to = patrons.user_id WHERE book_title IN (" # book_titles ")"
   }
 }
 ```

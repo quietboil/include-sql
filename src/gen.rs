@@ -1,6 +1,6 @@
 use proc_macro2::{TokenStream, Span, Group, Delimiter, Literal, Ident, Punct, Spacing};
 use quote::{ToTokens, TokenStreamExt};
-use crate::sql::{IncludedSql, Stmt, StmtItem};
+use crate::sql::{IncludedSql, Stmt, StmtItem, TakeStmtItem};
 use crate::conv::StringExt;
 
 impl ToTokens for IncludedSql {
@@ -33,63 +33,17 @@ impl ToTokens for Stmt {
         stmt_tokens.append(Ident::new(&self.name, Span::call_site()));
 
         let mut stmt_params = TokenStream::new();
-        for param in self.unique_binds() {
-            match param {
-                StmtItem::Bind(name) => {
-                    stmt_params.append(Punct::new(':', Spacing::Alone));
-                    stmt_params.append(Ident::new(name, Span::call_site()));
-                    let type_tree = self.params.get(name)
-                        .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
-                        .map(|param_type| {
-                            let mut type_tokens = TokenStream::new();
-                            #[cfg(feature = "async")]
-                            if let syn::Type::Reference(_) = &param_type {
-                                lifetime(name).to_tokens(&mut type_tokens);
-                            }
-                            param_type.to_tokens(&mut type_tokens);
-                            Group::new(Delimiter::Parenthesis, type_tokens)
-                        })
-                    ;
-                    if let Some(tt) = type_tree {
-                        stmt_params.append(tt);
-                    } else {
-                        stmt_params.append(Ident::new("_", Span::call_site()));
-                    }
-                },
-                StmtItem::List(name) => {
-                    stmt_params.append(Punct::new('#', Spacing::Alone));
-                    stmt_params.append(Ident::new(name, Span::call_site()));
-                    let type_tree = self.params.get(name)
-                        .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
-                        .map(|param_type| {
-                            let mut type_tokens = TokenStream::new();                            
-                            #[cfg(feature = "async")] {
-                                lifetime(name).to_tokens(&mut type_tokens);
-                                if let syn::Type::Reference(_) = &param_type {
-                                    let mut item = String::with_capacity(name.len() + 5);
-                                    item.push_str(name);
-                                    item.push_str("_item");
-                                    lifetime(&item).to_tokens(&mut type_tokens);
-                                }
-                            }
-                            param_type.to_tokens(&mut type_tokens);
-                            Group::new(Delimiter::Parenthesis, type_tokens)
-                        })
-                    ;
-                    if let Some(tt) = type_tree {
-                        stmt_params.append(tt);
-                    } else {
-                        let type_name = name.to_camel_case();
-                        let mut type_tokens = TokenStream::new();
-                        #[cfg(feature = "async")]
-                        lifetime(name).to_tokens(&mut type_tokens);
-                        type_tokens.append(Ident::new(&type_name, Span::call_site()));
-                        stmt_params.append(Group::new(Delimiter::Bracket, type_tokens));
-                    }
-                },
-                _ => {},
+        let mut binds = self.unique_binds();
+        for param in &self.params {
+            if let Some(bind) = binds.take_by_name(&param.name) {
+                bind.to_params_tokens(Some(param.rust_type.as_str()), &mut stmt_params);
             }
         }
+        // append remaining untyped parameter placeholders
+        for bind in binds {
+            bind.to_params_tokens(None, &mut stmt_params);
+        }
+
         stmt_tokens.append(Group::new(Delimiter::Parenthesis, stmt_params));
 
         if let Some(doc_comment) = self.docs.as_ref() {
@@ -118,6 +72,66 @@ impl ToTokens for StmtItem {
                 tokens.append(Punct::new('#', Spacing::Alone));
                 tokens.append(Ident::new(name, Span::call_site()));
             }
+        }
+    }
+}
+
+impl StmtItem {
+    fn to_params_tokens(&self, opt_type_name: Option<&str>, stmt_params: &mut TokenStream) {
+        match self {
+            StmtItem::Bind(name) => {
+                stmt_params.append(Punct::new(':', Spacing::Alone));
+                stmt_params.append(Ident::new(name, Span::call_site()));
+                let type_tree = opt_type_name
+                    .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
+                    .map(|param_type| {
+                        let mut type_tokens = TokenStream::new();
+                        #[cfg(feature = "async")]
+                        if let syn::Type::Reference(_) = &param_type {
+                            lifetime(name).to_tokens(&mut type_tokens);
+                        }
+                        param_type.to_tokens(&mut type_tokens);
+                        Group::new(Delimiter::Parenthesis, type_tokens)
+                    })
+                ;
+                if let Some(tt) = type_tree {
+                    stmt_params.append(tt);
+                } else {
+                    stmt_params.append(Ident::new("_", Span::call_site()));
+                }
+            },
+            StmtItem::List(name) => {
+                stmt_params.append(Punct::new('#', Spacing::Alone));
+                stmt_params.append(Ident::new(name, Span::call_site()));
+                let type_tree = opt_type_name
+                    .and_then(|type_name| syn::parse_str::<syn::Type>(type_name).ok())
+                    .map(|param_type| {
+                        let mut type_tokens = TokenStream::new();
+                        #[cfg(feature = "async")] {
+                            lifetime(name).to_tokens(&mut type_tokens);
+                            if let syn::Type::Reference(_) = &param_type {
+                                let mut item = String::with_capacity(name.len() + 5);
+                                item.push_str(name);
+                                item.push_str("_item");
+                                lifetime(&item).to_tokens(&mut type_tokens);
+                            }
+                        }
+                        param_type.to_tokens(&mut type_tokens);
+                        Group::new(Delimiter::Parenthesis, type_tokens)
+                    })
+                ;
+                if let Some(tt) = type_tree {
+                    stmt_params.append(tt);
+                } else {
+                    let type_name = name.to_camel_case();
+                    let mut type_tokens = TokenStream::new();
+                    #[cfg(feature = "async")]
+                    lifetime(name).to_tokens(&mut type_tokens);
+                    type_tokens.append(Ident::new(&type_name, Span::call_site()));
+                    stmt_params.append(Group::new(Delimiter::Bracket, type_tokens));
+                }
+            },
+            _ => {}
         }
     }
 }

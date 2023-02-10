@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
-
 use once_cell::sync::Lazy;
 use regex::Regex;
 use crate::err::{self, Result};
@@ -18,7 +16,7 @@ pub(super) fn parse(text: &str, file_name: &str) -> Result<IncludedSql> {
 
 static LINE_COMMENT : Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*--").expect("full line comment pattern"));
 static TAIL_COMMENT : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*--").expect("line tail comment pattern"));
-static STMT_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*name:\s*([[:alpha:]][[:word:]]*)([!#$%&*+./:<=>?@^|~-]*)").expect("statement name pattern"));
+static STMT_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*name:\s*([[:alpha:]][[:word:]]*)\s*([!#$%&*+./:<=>?@^|~-]*)").expect("statement name pattern"));
 static STMT_PARAM   : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*param:\s*([[:alpha:]][[:word:]]*)\s*:\s*(\S+)\s*(.*)").expect("statement parameter pattern"));
 static BIND_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\b[Ii][Nn]\s*\(\s*(:[[:alpha:]][[:word:]]*)\s*\)|(:[[:alpha:]][[:word:]]*)").expect("parameter placeholder pattern"));
 static INTO_TOKEN   : Lazy<Regex> = Lazy::new(|| Regex::new(r"^(?:[@,#$?;~_.]|[+^/*!%]=?|&[&=]?|=[=>]?|>[>=]?|<[<=-]?|[|][=|]?|-[=>]?|::?|[.][.][.=]?|>>=|<<=)$").expect("punctuation token pattern"));
@@ -29,7 +27,7 @@ fn parse_text(text: &str) -> Vec<Stmt> {
     let mut stmt_into = None;
     let mut stmt_text = String::with_capacity(250);
     let mut stmt_docs = String::with_capacity(250);
-    let mut stmt_params = HashMap::new();
+    let mut stmt_params = Vec::new();
 
     for line in text.lines() {
         let line = line.trim_end();
@@ -47,7 +45,7 @@ fn parse_text(text: &str) -> Vec<Stmt> {
                     stmt_text.clear();
                 }
                 stmt_docs.clear();
-                stmt_params = HashMap::new();
+                stmt_params = Vec::new();
 
                 stmt_name = name.get(1).map(|name_match| name_match.as_str().to_string());
                 stmt_into = name.get(2).map(|into_match| into_match.as_str()).filter(|into| into.len() > 0).map(|into| into.to_string());
@@ -68,7 +66,7 @@ fn parse_text(text: &str) -> Vec<Stmt> {
                 stmt_docs.push_str("` ");
                 stmt_docs.push_str(&param[3]);
 
-                stmt_params.insert(param_name, param_type);
+                stmt_params.push(StmtParam::new(param_name, param_type));
             } else {
                 // A comment or a doc-comment line.
                 // It depends on whether this statement's name: has been parsed already
@@ -87,7 +85,7 @@ fn parse_text(text: &str) -> Vec<Stmt> {
             } else {
                 line.trim_end()
             };
-            if let Some( last_line ) = line.strip_suffix(';') {
+            if let Some( last_line ) = line.strip_suffix('/') {
                 // statement is explicitly terminated
                 stmt_text.push_str(last_line.trim_end());
                 if !stmt_text.is_empty() {
@@ -95,7 +93,7 @@ fn parse_text(text: &str) -> Vec<Stmt> {
                     stmt_list.push(stmt);
 
                     stmt_text.clear();
-                    stmt_params = HashMap::new();
+                    stmt_params = Vec::new();
                 } else {
                     stmt_params.clear();
                 }
@@ -135,9 +133,9 @@ fn check_stmt_names(stmt_list: &[Stmt]) -> Result<()> {
 
 fn check_parameters(stmt_list: &[Stmt]) -> Result<()> {
     for stmt in stmt_list {
-        for param_name in stmt.params.keys() {
-            if !stmt.items.iter().any(|item| item.is_bind(param_name)) {
-                return Err(err::new(format!("param `{}` is not found in `{}`", param_name, &stmt.name)))
+        for param in &stmt.params {
+            if !stmt.items.iter().any(|item| item.is_bind(&param.name)) {
+                return Err(err::new(format!("param `{}` is not found in `{}`", &param.name, &stmt.name)))
             }
         }
     }
@@ -160,8 +158,19 @@ pub(crate) struct Stmt {
     /// retrieve and process rows returned by a query, etc.
     pub(crate) into: String,
     pub(crate) docs: Option<String>,
-    pub(crate) params: HashMap<String,String>,
+    pub(crate) params: Vec<StmtParam>,
     pub(crate) items: Vec<StmtItem>,
+}
+
+/// Represents a declared statement parameter
+#[derive(Debug)]
+pub(crate) struct StmtParam {
+    pub(crate) name: String,
+    pub(crate) rust_type: String,
+}
+
+pub(crate) trait SelectStmtParamType {
+    fn select(&self, name: &str) -> Option<&str>;
 }
 
 /// Represents an element of the SQL statement
@@ -175,8 +184,12 @@ pub(crate) enum StmtItem {
     List(String),
 }
 
+pub(crate) trait TakeStmtItem {
+    fn take_by_name(&mut self, name: &str) -> Option<&StmtItem>;
+}
+
 impl Stmt {
-    fn new(name: Option<String>, into: Option<String>, params: HashMap<String,String>, stmt_text: &str, stmt_docs: &str) -> Self {
+    fn new(name: Option<String>, into: Option<String>, params: Vec<StmtParam>, stmt_text: &str, stmt_docs: &str) -> Self {
         let name = name.unwrap_or_default();
         let into = into.unwrap_or_else(|| "!".to_string());
         let items = Self::parse_text(stmt_text);
@@ -227,6 +240,18 @@ impl Stmt {
     }
 }
 
+impl StmtParam {
+    fn new(name: String, rust_type: String) -> Self {
+        Self { name, rust_type }
+    }
+}
+
+impl SelectStmtParamType for Vec<StmtParam> {
+    fn select(&self, name: &str) -> Option<&str> {
+        self.iter().find(|param| param.name == name).map(|param| param.rust_type.as_str())
+    }
+}
+
 impl StmtItem {
     fn is_bind(&self, name: &str) -> bool {
         match self {
@@ -234,6 +259,19 @@ impl StmtItem {
             Self::Bind(param_name) => { param_name == name },
             Self::List(param_name) => { param_name == name }
         }
+    }
+}
+
+impl TakeStmtItem for Vec<&StmtItem> {
+    fn take_by_name(&mut self, name: &str) -> Option<&StmtItem> {
+        let pos = self.iter().position(|item| 
+            match &item {
+                StmtItem::Bind(param_name) => param_name == name,
+                StmtItem::List(param_name) => param_name == name,
+                _ => false
+            }
+        );
+        pos.map(|idx| self.remove(idx))
     }
 }
 
@@ -304,7 +342,8 @@ mod tests {
 -- SELECT *
 --   FROM some_table
 --  WHERE column_a = :val1
---    AND column_b LIKE :val2;
+--    AND column_b LIKE :val2
+-- /
         ";
         let sql = super::parse(text, "comments_only_sql").unwrap();
         assert!(sql.stmt_list.is_empty());
@@ -316,9 +355,9 @@ mod tests {
 -- there is no name
 -- not even SQL
 -- maybe it's a work in progress
-    ;
+/
         ";
-        let sql = super::parse(text, "comments_only_sql").unwrap();
+        let sql = super::parse(text, "empty_statement").unwrap();
         assert!(sql.stmt_list.is_empty());
     }
 
@@ -329,9 +368,11 @@ mod tests {
 
         let text = "
 -- name: select_something?
-SELECT something FROM somewhere WHERE col = :val;
+SELECT something FROM somewhere WHERE col = :val
+/
 
-SELECT Count(*) FROM some_table WHERE num_column > 0;
+SELECT Count(*) FROM some_table WHERE num_column > 0
+/
         ";
         parse(text, "unnamed_statement").unwrap();
     }
@@ -342,9 +383,9 @@ SELECT Count(*) FROM some_table WHERE num_column > 0;
 
         let text = "
 -- name: update_something
-UPDATE something SET a_thing = :VAL WHERE col = :COL_VAL;
+UPDATE something SET a_thing = :VAL WHERE col = :COL_VAL
         ";
-        let sql = parse(text, "unnamed_statement").unwrap();
+        let sql = parse(text, "no_variant_statement").unwrap();
         assert_eq!(1, sql.stmt_list.len());
         let stmt = &sql.stmt_list[0];
         assert_eq!(stmt.name, "update_something");
@@ -358,18 +399,18 @@ UPDATE something SET a_thing = :VAL WHERE col = :COL_VAL;
 
         let text = "
 -- name: select_something>?
-SELECT something FROM somewhere WHERE col = :val;
+SELECT something FROM somewhere WHERE col = :val
         ";
-        parse(text, "unnamed_statement").unwrap();
+        parse(text, "bad_variant_statement").unwrap();
     }
 
     #[test]
     fn parse_named_stmt_with_a_param() {
-        use super::{parse, StmtItem};
+        use super::{parse, StmtItem, SelectStmtParamType};
 
         let text = "
 -- A comment line (not part of the statement)
--- name: count_positives?
+-- name: count_positives ?
 -- A doc-comment line
 -- # Parameters
 -- param: rec_type : &str - record type
@@ -379,7 +420,7 @@ SELECT Count(*)
   FROM some_table      -- as well as trailing comments
  WHERE num_column > 0
    AND record_type = :rec_type
-;
+/
         ";
         let sql = parse(text, "named_stmt_with_a_param").unwrap();
         assert_eq!(1, sql.stmt_list.len());
@@ -404,7 +445,7 @@ SELECT Count(*)
         }
 
         assert_eq!(stmt.params.len(), 1);
-        let ty = stmt.params.get("rec_type");
+        let ty = stmt.params.select("rec_type");
         assert!(ty.is_some());
         let ty = ty.unwrap();
         assert_eq!(ty, "&str");
@@ -423,26 +464,25 @@ SELECT Count(*)
   FROM some_table
  WHERE num_column > 0
    AND record_type = :rec_type
-;
+/
         ";
         parse(text, "unknown_parameter").unwrap();
     }
 
     #[test]
     fn parse_multiple_stmts() {
-        use super::{parse, StmtItem};
+        use super::{parse, StmtItem, SelectStmtParamType};
 
         let text = "
 -- comment before a `name:` is a file comment
 
--- name: count_stuff?
+-- name: count_stuff ?
 -- param: rec_type: &str - record type
 SELECT Count(*)
   FROM some_table
  WHERE record_type = :rec_type
-;
 
--- comment after the terminating semicolon is also a file comment
+-- comment after the statement terminator `/` is also a file comment
 
 -- name: find_stuff?
 -- param: min_qty: usize - minimum quantity
@@ -450,7 +490,7 @@ SELECT *
   FROM some_table
  WHERE some_qty >= :min_qty
 
--- if the statement is not explicitly terminated with a semicolon
+-- if the statement is not explicitly terminated with a slash
 -- this comment will be considered as an inner statement comment
 -- and ignored as such too
         ";
@@ -461,7 +501,7 @@ SELECT *
         assert_eq!(stmt.name, "count_stuff");
         assert_eq!(stmt.into, "?");
         assert_eq!(stmt.params.len(), 1);
-        let param = stmt.params.get("rec_type");
+        let param = stmt.params.select("rec_type");
         assert!(param.is_some());
         let ptype = param.unwrap();
         assert_eq!(ptype, "&str");
@@ -488,7 +528,7 @@ SELECT *
         assert_eq!(stmt.name, "find_stuff");
         assert_eq!(stmt.into, "?");
         assert_eq!(stmt.params.len(), 1);
-        let param = stmt.params.get("min_qty");
+        let param = stmt.params.select("min_qty");
         assert!(param.is_some());
         let ptype = param.unwrap();
         assert_eq!(ptype, "usize");
@@ -516,7 +556,7 @@ SELECT *
     fn unique_binds() {
         let text = "
 -- name: unique_binds
-INSERT INTO some_table VALUES (:v1, :v2, :v3, :v1, :v3, :v1, :v2, :v4, :v3, :v1);
+INSERT INTO some_table VALUES (:v1, :v2, :v3, :v1, :v3, :v1, :v2, :v4, :v3, :v1)
         ";
         let sql = super::parse(text, "find_unique_parameter_names").unwrap();
         assert_eq!(1, sql.stmt_list.len());
@@ -551,7 +591,7 @@ INSERT INTO some_table VALUES (:v1, :v2, :v3, :v1, :v3, :v1, :v2, :v4, :v3, :v1)
 
         let text = "
 --name: snake_case_parameter_names->
-INSERT INTO invoice (InvoiceId, CustomerId, InvoiceDate, Total) VALLUES (:InvoiceId, :customerId, :Invoice_Date, :TOTAL);
+INSERT INTO invoice (InvoiceId, CustomerId, InvoiceDate, Total) VALLUES (:InvoiceId, :customerId, :Invoice_Date, :TOTAL)
         ";
         let sql = parse(text, "snake_case_parameter_names").unwrap();
         assert_eq!(sql.stmt_list.len(), 1);

@@ -16,10 +16,10 @@ Add `include-sqlite-sql` as a dependency:
 
 ```toml
 [dependencies]
-include-sqlite-sql = "0.1"
+include-sqlite-sql = "0.2"
 ```
 
-Write your SQL and save it in a file. For example, let's say the following is saved as `library.sql` in the project's `src` folder:
+Write your SQL and save it in a file. For example, let's say the following is saved as `library.sql` in the project's `sql` folder:
 
 ```sql
 -- name: get_loaned_books?
@@ -29,18 +29,22 @@ Write your SQL and save it in a file. For example, let's say the following is sa
 SELECT book_title
   FROM library
  WHERE loaned_to = :user_id
- ORDER BY 1;
-
+ ORDER BY 1
+/
 -- name: loan_books!
 -- Updates the book record to reflect loan to a patron
 -- # Parameters
+-- param: book_titles: &str - book titles
 -- param: user_id: &str - user ID
--- param: book_ids: u32 - book IDs
 UPDATE library
    SET loaned_to = :user_id
      , loaned_on = current_timestamp
- WHERE book_id IN (:book_ids);
+ WHERE book_title IN (:book_titles)
+/
 ```
+
+> **Note** that the parameter order is defined by the `param` declarations.
+
 
 And then use it in Rust as:
 
@@ -48,18 +52,16 @@ And then use it in Rust as:
 use include_sqlite_sql::{include_sql, impl_sql};
 use rusqlite::{Result, Connection};
 
-include_sql!("src/library.sql");
+include_sql!("sql/library.sql");
 
 fn main() -> Result<()> {
-    let args : Vec<String> = std::env::args().collect();
-    let dbpath = &args[1];
-    let user_id = &args[2];
+    let db = Connection::open("library.db")?;
 
-    let db = Connection::open(dbpath)?;
+    db.loan_books(&["Where the Sidewalk Ends", "A Wrinkle in Time", "Dune"], "Penny Teller")?;
 
-    db.get_loaned_books(user_id, |row| {
+    db.get_loaned_books("Leonard Hofstadter", |row| {
         let book_title : &str = row.get_ref("book_title")?.as_str()?;
-        println!("{}", book_title);
+        println!("{book_title}");
         Ok(())
     })?;
 
@@ -76,14 +78,14 @@ After parsing and validating the content of the SQL file `include-sql` generates
 ```rust , ignore
 impl_sql!{ LibrarySql =
   {
-    ? get_loaned_books (:user_id (&str))
+    ? get_loaned_books (: user_id (&str))
     " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
     $ "SELECT book_title\n  FROM library\n WHERE loaned_to = " :user_id "\n ORDER BY 1"
   },
   {
-    ! loan_books (:user_id (&str) #book_ids (u32))
-    " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
-    $ "UPDATE library\n   SET loaned_to = " :user_id "\n,     loaned_on = current_timestamp\n WHERE book_id IN (" #book_ids ")"
+    ! loan_books (# book_titles (&str) : user_id (&str))
+    " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_titles` - book titles"
+    $ "UPDATE library\n   SET loaned_to = " : user_id "\n,     loaned_on = current_timestamp\n WHERE book_title IN (" # book_titles ")"
   }
 }
 ```
@@ -96,13 +98,13 @@ trait LibrarySql {
     /// # Parameters
     /// * `user_id` - user ID
     fn get_loaned_books<F>(&self, user_id: &str, row_callback: F) -> rusqlite::Result<()>
-    where F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<()>;
+    where F: FnMut(&rusqlite::Row) -> rusqlite::Result<()>;
 
     /// Updates the book records to reflect loan to a patron
     /// # Parameters
+    /// * `book_titles` - book titles
     /// * `user_id` - user ID
-    /// * `book_ids` - book IDs
-    fn loan_books(&self, user_id: &str, book_ids: &[u32]) -> rusqlite::Result<usize>;
+    fn loan_books(&self, book_ids: &[&str], user_id: &str) -> rusqlite::Result<usize>;
 }
 ```
 
@@ -118,9 +120,15 @@ impl LibrarySql for rusqlite::Connection {
 
 The included [documentation][5] describes the supported SQL file format and provides instructions on writing your own `impl_sql` macro.
 
+# 💥 Breaking Changes in Version 0.3
+
+* Order of the parameters for the generated method is defined by the order of the `param` descriptors. This is a potentially breaking change as previously parameters of the generated method followed the order of the parameters in the SQL statement. When SQL statement header does not use `param` descriptors, then the generated generic method parameters will be ordered according to their appearance in the SQL statement.
+* Statements are terminated with the slash `/` instead of the semicolon `;`. This was implemented to allow declaration and use of [batches][7] of statements for SQLite and PL/SQL blocks for Oracle. Note that statement terminator is optional when the statement is the last statement in the file or when it is followed by another statement, which header will auto-terminate the preceding statement.
+
 [1]: https://github.com/krisajenkins/yesql
 [2]: https://crates.io/crates/include-postgres-sql
 [3]: https://crates.io/crates/include-sqlite-sql
 [4]: https://doc.rust-lang.org/proc_macro/struct.SourceFile.html
 [5]: https://quietboil.github.io/include-sql
 [6]: https://crates.io/crates/include-oracle-sql
+[7]: https://docs.rs/rusqlite/latest/rusqlite/struct.Connection.html#method.execute_batch

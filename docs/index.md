@@ -4,7 +4,7 @@ When you write your own `impl_sql`, you would need to add `include-sql` as a dep
 
 ```toml
 [dependencies]
-include-sql = "0.2"
+include-sql = "0.3"
 ```
 
 It might also be prudent to re-export `include-sql` macro to make the use of your crate more ergonomic:
@@ -27,36 +27,44 @@ Let's assume that we created the following file and saved it as `library.sql`:
 
 ```sql
 -- name: get_loaned_books?
+--
 -- Returns the list of books loaned to a patron
+--
 -- # Parameters
+--
 -- param: user_id: &str - user ID
+--
 SELECT book_title
   FROM library
  WHERE loaned_to = :user_id
- ORDER BY 1;
+ ORDER BY 1
+/
 
--- name: loan_books
+-- name: loan_books!
+--
 -- Updates the book records to reflect loan to a patron
+--
 -- # Parameters
+--
+-- param: book_titles: &str - book titles
 -- param: user_id: &str - user ID
--- param: book_ids: u32 - book IDs
+--
 UPDATE library
    SET loaned_to = :user_id
      , loaned_on = current_timestamp
- WHERE book_id IN (:book_ids)   -- Note that :book_ids names a collection
-                                -- of values rather than a single value
-;
+ WHERE book_title IN (:book_titles)
+/
 ```
 
 An SQL file can include one or more SQL statements. Each statement must have a preceding doc-comment. The latter has a dual purpose - it provides the doc-comment text for the generated method, and it also embeds meta data about the statement that follows it:
 
-* `name:` a mandatory meta comment that defines an `ident` that is used to generate the database access artifact. For example, [include-postgres-sql][1] and [include-sqlite-sql][2] generate a trait method from it.
+* `name:` a mandatory meta comment that defines an [identifier][5] that is used to generate the database access artifact. For example, [include-postgres-sql][1] and [include-sqlite-sql][2] generate a trait method from it.
 
 > **Note** that include-sql will use the name as-is. If you want to avoid Rust complaining about it, use the appropriate (snake) case for it.
 
 * `?` is a statement variant tag. It directs `impl_sql` to generate a specific implementation. This tag can be any sequence of Rust punctuation characters as long as they represent a single valid Rust punctuation [token][4]. This tag is optional. When it is absent, an implicit `!` will be passed to the `impl_sql` macro.
 
-> For example, [include-postgres-sql][1] and [include-sqlite-sql][2] recognize `?`, `!`, and `->` tags. For `? they generate methods that process selected rows, for `!` - methods that execute all other - non-select - statements, and for `->` - methods that read data from `RETURNING` statements.
+> For example, [include-postgres-sql][1] and [include-sqlite-sql][2] recognize `?`, `!`, and `->` tags. For `?` they generate methods that process selected rows, for `!` - methods that execute all other - non-select - statements, and for `->` - methods that read data from `RETURNING` statements.
 
 * `param:` is an optional description of a statement parameter. It is expressed in `parameter_name : parameter_type` format. Text that follows `parameter_type` is used as a doc-comment for this parameter.
 
@@ -68,11 +76,11 @@ An SQL file can include one or more SQL statements. Each statement must have a p
 
 * The rest of the statement doc-comment lines are gathered together to form a Rust doc-comment text for the generated method.
 
-* `:user_id` and `:book_ids` are statement parameters. Each parameter starts with `:` and can be anything the can be an `ident` in Rust. However, as they might be used to name method parameters in Rust, `include-sql` forces them into snake-case.
+* `:user_id` and `:book_ids` are statement parameters. Each parameter starts with `:` and can be anything the can be an identifier in Rust. However, as they might be used to name method parameters in Rust, `include-sql` forces them into snake-case.
 
 * The inner statement comments are allowed and will be discarded by include-sql.
 
-Statements should be terminated with semicolons. However, this is optional as the following `name:` meta comment would also auto-terminate the preceding statement.
+Statements should be terminated with a slash - `/`. However, in some cases it could be optional as the following `name:` meta comment would also auto-terminate the preceding statement.
 
 # Generated `impl_sql` Call
 
@@ -81,27 +89,27 @@ For the SQL above include-sql would generate:
 ```rust
 impl_sql!{ LibrarySql =
   {
-    ? get_loaned_books (:user_id (&str))
-    " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
-    $ "SELECT book_title\n  FROM library\n WHERE loaned_to = " :user_id "\n ORDER BY 1"
+    ? get_loaned_books (: user_id (&str))
+    "\n Returns the list of books loaned to a patron\n\n # Parameters\n\n * `user_id` - user ID\n"
+    $ "SELECT book_title\n  FROM library\n WHERE loaned_to = " : user_id "\n ORDER BY 1"
   },
   {
-    ! loan_books (:user_id (&str) #book_ids (u32))
-    " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
-    $ "UPDATE library\n   SET loaned_to = " :user_id "\n,     loaned_on = current_timestamp\n WHERE book_id IN (" #book_ids ")"
+    ! loan_books (# book_titles (u32) : user_id (&str))
+    "\n Updates the book records to reflect loan to a patron\n\n # Parameters\n\n * `book_ids` - book IDs\n * `user_id` - user ID\n"
+    $ "UPDATE library\n   SET loaned_to = " : user_id "\n,     loaned_on = current_timestamp\n WHERE book_title IN (" # book_titles ")"
   }
 }
 ```
 
 Where:
 
-* `LibrarySql` is a camel-cased `ident` derived from the SQL file name. It might be used by `impl_sql` to generate a trait (like [include-postgres-sql][1] and [include-sqlite-sql][2] do).
+* `LibrarySql` is a camel-cased identifier derived from the SQL file name. It might be used by `impl_sql` to generate a trait (like [include-postgres-sql][1] and [include-sqlite-sql][2] do).
 
 * `?` or `!` is a statement variant selector
 
 * `get_loaned_books` and `loan_books` are `ident`s created from the statement names that can be used to name generated methods
 
-* `user_id` and `book_ids` are `ident`s that represent parameter names.
+* `user_id` and `book_ids` are identifiers that represent parameter names.
 
 * `:` and `#` in front of the parameter names are parameter variant tags:
   - `:` indicates that the following parameter is a scalar
@@ -121,14 +129,14 @@ For example, the above `LibrarySql` example will look like this:
 ```rust
 impl_sql!{ LibrarySql =
   {
-    ? get_loaned_books (:user_id ('user_id &str))
-    " Returns the list of books loaned to a patron\n # Parameters\n * `user_id` - user ID"
+    ? get_loaned_books (: user_id ('user_id &str))
+    "\n Returns the list of books loaned to a patron\n\n # Parameters\n\n * `user_id` - user ID\n"
     $ "SELECT book_title FROM library WHERE loaned_to = " :user_id "ORDER BY 1"
   },
   {
-    ! loan_books (:user_id ('user_id &str) #book_ids ('book_ids usize))
-    " Updates the book records to reflect loan to a patron\n # Parameters\n * `user_id` - user ID\n * `book_ids` - book IDs"
-    $ "UPDATE library SET loaned_to = " :user_id ", loaned_on = current_timestamp WHERE book_id IN ( " #book_ids " )"
+    ! loan_books (: user_id ('user_id &str) # book_ids ('book_ids usize))
+    "\n Updates the book records to reflect loan to a patron\n\n # Parameters\n\n * `book_ids` - book IDs\n * `user_id` - user ID\n"
+    $ "UPDATE library SET loaned_to = " : user_id ", loaned_on = current_timestamp WHERE book_title IN ( " # book_titles " )"
   }
 }
 ```
@@ -138,13 +146,16 @@ For example, for this query:
 
 ```sql
 -- name: get_users_who_loaned_books?
--- Returns names patrons that at one time or another have loaned specified books
+--
+-- Returns names patrons to whom the specified books are loaned
+--
 -- # Parameters
+--
 -- param: book_titles: &str - book titles
 SELECT DISTINCT first_name, last_name
   FROM patrons
   JOIN library ON library.loaned_to = patrons.user_id
- WHERE book_title IN (:book_titles);
+ WHERE book_title IN (:book_titles)
 ```
 
 include-sql will generate:
@@ -152,9 +163,9 @@ include-sql will generate:
 ```rust
 impl_sql!{ LibrarySql =
   {
-    ? get_users_who_loaned_books (#book_titles ('book_titles 'book_titles_item &str))
-    " Returns names patrons that at one time or another have loaned specified books\n # Parameters\n * `book_titles` - book titles"
-    $ "SELECT DISTINCT first_name, last_name  FROM patrons  JOIN library ON library.loaned_to = patrons.user_id WHERE book_title IN (" #book_titles ")"
+    ? get_users_who_loaned_books (# book_titles ('book_titles 'book_titles_item &str))
+    " Returns names patrons to whom the specified books are loaned\n # Parameters\n * `book_titles` - book titles"
+    $ "SELECT DISTINCT first_name, last_name FROM patrons JOIN library ON library.loaned_to = patrons.user_id WHERE book_title IN (" # book_titles ")"
   }
 }
 ```
@@ -167,3 +178,4 @@ As a picture is worth a thousand words before you start implementing your own `i
 [2]: https://crates.io/crates/include-sqlite-sql
 [3]: https://docs.rs/syn/latest/syn/enum.Type.html
 [4]: https://docs.rs/syn/latest/syn/macro.Token.html
+[5]: https://docs.rs/syn/latest/syn/struct.Ident.html
