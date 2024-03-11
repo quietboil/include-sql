@@ -18,7 +18,11 @@ static LINE_COMMENT : Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s*--").expect("f
 static TAIL_COMMENT : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*--").expect("line tail comment pattern"));
 static STMT_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*name:\s*([[:alpha:]][[:word:]]*)\s*([!#$%&*+./:<=>?@^|~-]*)").expect("statement name pattern"));
 static STMT_PARAM   : Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*param:\s*([[:alpha:]][[:word:]]*)\s*:\s*(\S+)\s*(.*)").expect("statement parameter pattern"));
-static BIND_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\b[Ii][Nn]\s*\(\s*(:[[:alpha:]][[:word:]]*)\s*\)|(:[[:alpha:]][[:word:]]*)").expect("parameter placeholder pattern"));
+// the non-IN parameter placeholder cheats a bit to avoid matching Postgres ::
+// casts -- we know a parameter will _never_ be at position zero in a valid
+// SQL statement, so we can use a negated class to exclude anything with two
+// colons. Much easier since lookaround isn't supported!
+static BIND_NAME    : Lazy<Regex> = Lazy::new(|| Regex::new(r"\b[Ii][Nn]\s*\(\s*(:[[:alpha:]][[:word:]]*)\s*\)|[^:](:[[:alpha:]][[:word:]]*)").expect("parameter placeholder pattern"));
 static INTO_TOKEN   : Lazy<Regex> = Lazy::new(|| Regex::new(r"^(?:[@,#$?;~_.]|[+^/*!%]=?|&[&=]?|=[=>]?|>[>=]?|<[<=-]?|[|][=|]?|-[=>]?|::?|[.][.][.=]?|>>=|<<=)$").expect("punctuation token pattern"));
 
 fn parse_text(text: &str) -> Vec<Stmt> {
@@ -264,7 +268,7 @@ impl StmtItem {
 
 impl TakeStmtItem for Vec<&StmtItem> {
     fn take_by_name(&mut self, name: &str) -> Option<&StmtItem> {
-        let pos = self.iter().position(|item| 
+        let pos = self.iter().position(|item|
             match &item {
                 StmtItem::Bind(param_name) => param_name == name,
                 StmtItem::List(param_name) => param_name == name,
@@ -449,6 +453,73 @@ SELECT Count(*)
         assert!(ty.is_some());
         let ty = ty.unwrap();
         assert_eq!(ty, "&str");
+    }
+
+    #[test]
+    fn parse_postgres_casts() {
+        use super::{parse, StmtItem, SelectStmtParamType};
+
+        let text = "
+-- A comment line (not part of the statement)
+-- name: count_positives ?
+-- A doc-comment line
+-- # Parameters
+-- param: rec_type : &str - record type
+-- param: other_thing: &i32 - a number
+-- Final doc-comment line
+SELECT Count(*)
+       -- line level comments inside the statement are discarded too
+  FROM some_table      -- as well as trailing comments
+ WHERE num_column > 0
+   AND record_type = :rec_type
+   AND record_status::text = 'ready'
+   AND other_thing = :other_thing
+/
+        ";
+        let sql = parse(text, "named_stmt_with_a_param").unwrap();
+        assert_eq!(1, sql.stmt_list.len());
+        let stmt = &sql.stmt_list[0];
+        assert_eq!(stmt.name, "count_positives");
+        assert_eq!(stmt.into, "?");
+        assert_eq!(stmt.docs.as_ref().unwrap(), " A doc-comment line\n # Parameters\n * `rec_type` - record type\n * `other_thing` - a number\n Final doc-comment line");
+
+        let stmt_items = &stmt.items;
+        assert_eq!(4, stmt_items.len());
+        let item = &stmt_items[0];
+        if let StmtItem::Text(text) = item {
+            assert_eq!("SELECT Count(*)\n  FROM some_table\n WHERE num_column > 0\n   AND record_type = ", text)
+        } else {
+            panic!("expected text item");
+        }
+        let item = &stmt_items[1];
+        if let StmtItem::Bind(name) = item {
+            assert_eq!("rec_type", name);
+        } else {
+            panic!("expected bind item");
+        }
+        let item = &stmt_items[2];
+        if let StmtItem::Text(text) = item {
+            assert_eq!("\n   AND record_status::text = 'ready'\n   AND other_thing = ", text)
+        } else {
+            panic!("expected text item");
+        }
+        let item = &stmt_items[3];
+        if let StmtItem::Bind(name) = item {
+            assert_eq!("other_thing", name);
+        } else {
+            panic!("expected bind item");
+        }
+
+        assert_eq!(stmt.params.len(), 2);
+        let ty = stmt.params.select("rec_type");
+        assert!(ty.is_some());
+        let ty = ty.unwrap();
+        assert_eq!(ty, "&str");
+
+        let ty = stmt.params.select("other_thing");
+        assert!(ty.is_some());
+        let ty = ty.unwrap();
+        assert_eq!(ty, "&i32");
     }
 
     #[test]
