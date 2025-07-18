@@ -1,9 +1,10 @@
 [package]
 name = "include-sql"
 description = "A Yesql inspired macro for using SQL in Rust"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Alex Demenchuk <alexander.demenchuk@gmail.com>"]
 edition = "2018"
+rust-version = "1.88"
 license = "MIT"
 keywords = ["database","sql","macro"]
 categories = ["database"]
@@ -14,11 +15,11 @@ homepage = "https://quietboil.github.io/include-sql"
 proc-macro = true
 
 [dependencies]
-syn         = "1.0"
+syn         = "2.0"
 proc-macro2 = "1.0"
 quote       = "1.0"
-once_cell   = "1.19"
-regex       = "1.10"
+once_cell   = "1.21"
+regex       = "1.11"
 
 [features]
 async = []

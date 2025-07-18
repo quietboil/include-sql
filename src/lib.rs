@@ -1,16 +1,20 @@
 #![cfg_attr(docsrs, doc = include_str!("../README.md"))]
 
-use proc_macro;
-use syn::{ self, Token, parse::{ Parse, ParseStream } };
-use proc_macro2::{
-    TokenStream, Span, Group, Delimiter, Literal, Ident, Punct, Spacing
-};
-use quote::{ ToTokens, TokenStreamExt };
+use std::{fs, path::PathBuf};
 
-mod err;
-mod sql;
-mod gen;
+use proc_macro;
+use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream};
+use quote::{ToTokens, TokenStreamExt};
+use syn::{
+    self,
+    parse::{Parse, ParseStream},
+    LitStr, Token,
+};
+
 mod conv;
+mod err;
+mod gen;
+mod sql;
 
 /**
 Reads and parses the specified SQL file, and generates `impl_sql` macro call.
@@ -120,44 +124,73 @@ impl_sql!{ LibrarySql =
 */
 #[proc_macro]
 pub fn include_sql(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let file_path = syn::parse_macro_input!(input as syn::LitStr);
-    let path = file_path.value();
-    match read_and_parse_sql_file(&path) {
+    let inc_file_lit = syn::parse_macro_input!(input as syn::LitStr);
+    let inc_file_path = local_file(&inc_file_lit);
+
+    match read_and_parse_sql_file(&inc_file_path) {
         Ok(included_sql) => {
             let mut tokens = TokenStream::new();
-            output_include_bytes(&path, &mut tokens);
+            output_include_bytes(&inc_file_path, &mut tokens);
             if !included_sql.stmt_list.is_empty() {
                 included_sql.to_tokens(&mut tokens);
             }
             tokens.into()
         }
-        Err(err) => {
-            syn::Error::new(file_path.span(), err.to_string()).to_compile_error().into()
-        }
+        Err(err) => syn::Error::new(inc_file_lit.span(), err.to_string())
+            .to_compile_error()
+            .into(),
     }
 }
 
-/// Reads the content of the file at the `path` and parses its content.
-fn read_and_parse_sql_file(file_path: &str) -> err::Result<sql::IncludedSql> {
-    use std::path::PathBuf;
-    use std::fs;
-
+/// Returns path to the included SQL file on the local file system.
+///
+/// If the path given to the `include_sql` macro is relative, i.e. it does not start with `/`,
+/// then `include_sql` considers the provided path to be relative to the file that included it.
+///
+/// If the path given to the `include_sql` macro starts with '/', then `include_sql`
+/// considers it to be relative to the "root" of the project, i.e. relative to the
+/// `CARGO_MANIFEST_DIR` directory.
+fn local_file(inc_file_lit_path: &LitStr) -> PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     let mut path = PathBuf::from(&manifest_dir);
-    path.push(file_path);
-    let text = fs::read_to_string(&path)?;
-    let file_name = path.file_stem().unwrap_or_default().to_str().unwrap_or_default().replace('-', "_");
+
+    let inc_file_path = inc_file_lit_path.value();
+    if inc_file_path.starts_with('/') {
+        // Explicit absolute path
+        path.push(&inc_file_path[1..]);
+    } else if inc_file_path.starts_with("./") {
+        // Explicit relative path
+        let inc_mod = inc_file_lit_path.span().unwrap().file();
+        if !inc_mod.is_empty() {
+            path.push(inc_mod);
+            path.pop();
+        }
+        path.push(&inc_file_path[2..]);
+    } else {
+        // Implicit absolute path
+        path.push(inc_file_path);
+    }
+    path
+}
+
+/// Reads the content of the file at the `path` and parses its content.
+fn read_and_parse_sql_file(file_path: &PathBuf) -> err::Result<sql::IncludedSql> {
+    // let text = fs::read_to_string(&file_path)?;
+    let text = match fs::read_to_string(&file_path) {
+        Ok(text) => text,
+        Err(_) => return Err(err::Error::IO(std::io::Error::other(file_path.to_str().unwrap())))
+    };
+    let file_name = file_path
+        .file_stem()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default()
+        .replace('-', "_");
     sql::parse(&text, &file_name)
 }
 
 /// Writes a phantom call to `include_bytes` to make compiler aware of the external dependency.
-fn output_include_bytes(file_path: &str, tokens: &mut TokenStream) {
-    use std::path::PathBuf;
-
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
-    let mut path = PathBuf::from(&manifest_dir);
-    path.push(file_path);
-
+fn output_include_bytes(file_path: &PathBuf, tokens: &mut TokenStream) {
     tokens.append(Ident::new("const", Span::call_site()));
     tokens.append(Ident::new("_", Span::call_site()));
     tokens.append(Punct::new(':', Spacing::Alone));
@@ -172,7 +205,7 @@ fn output_include_bytes(file_path: &str, tokens: &mut TokenStream) {
     tokens.append(Punct::new('!', Spacing::Alone));
 
     let mut macro_tokens = TokenStream::new();
-    macro_tokens.append(Literal::string(path.to_str().unwrap()));
+    macro_tokens.append(Literal::string(file_path.to_str().unwrap()));
     tokens.append(Group::new(Delimiter::Parenthesis, macro_tokens));
 
     tokens.append(Punct::new(';', Spacing::Alone));
@@ -190,21 +223,28 @@ assert_eq!(idx, 3);
 */
 #[proc_macro]
 pub fn index_of(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let IndexOfArgs { param_name, start_index, stmt_params } = syn::parse_macro_input!(input as IndexOfArgs);
+    let IndexOfArgs {
+        param_name,
+        start_index,
+        stmt_params,
+    } = syn::parse_macro_input!(input as IndexOfArgs);
+
     let param_lookup = stmt_params.iter().position(|param| param == &param_name);
-    if let Some( pos ) = param_lookup {
+    if let Some(pos) = param_lookup {
         let mut tokens = TokenStream::new();
         tokens.append(Literal::usize_unsuffixed(start_index + pos));
         tokens.into()
     } else {
-        syn::Error::new(param_name.span(), "no such parameter").to_compile_error().into()
+        syn::Error::new(param_name.span(), "no such parameter")
+            .to_compile_error()
+            .into()
     }
 }
 
 struct IndexOfArgs {
-    param_name : syn::Ident,
-    stmt_params : syn::punctuated::Punctuated<syn::Ident, Token![,]>,
-    start_index : usize,
+    param_name: syn::Ident,
+    stmt_params: syn::punctuated::Punctuated<syn::Ident, Token![,]>,
+    start_index: usize,
 }
 
 impl Parse for IndexOfArgs {
@@ -214,9 +254,13 @@ impl Parse for IndexOfArgs {
         let param_list;
         syn::bracketed!(param_list in input);
         input.parse::<Token![+]>()?;
-        let start_index : syn::LitInt = input.parse()?;
+        let start_index: syn::LitInt = input.parse()?;
         let start_index = start_index.base10_parse()?;
-        let stmt_params = param_list.parse_terminated(syn::Ident::parse)?;
-        Ok(Self { param_name, stmt_params, start_index })
+        let stmt_params = param_list.parse_terminated(syn::Ident::parse, Token![,])?;
+        Ok(Self {
+            param_name,
+            stmt_params,
+            start_index,
+        })
     }
 }

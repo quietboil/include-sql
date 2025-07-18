@@ -52,7 +52,7 @@ And then use it in Rust as:
 use include_sqlite_sql::{include_sql, impl_sql};
 use rusqlite::{Result, Connection};
 
-include_sql!("sql/library.sql");
+include_sql!("/sql/library.sql");
 
 fn main() -> Result<()> {
     let db = Connection::open("library.db")?;
@@ -69,7 +69,10 @@ fn main() -> Result<()> {
 }
 ```
 
-> **Note** that the path to the SQL file must be specified relative to the project root, i.e. relative to `CARGO_MANIFEST_DIR`, even if you keep your SQL file alongside rust module that includes it. Because include-sql targets stable Rust this requirement will persist until [SourceFile][4] stabilizes.
+> ℹ️ **Note** that the path to the SQL file can be specified either relative to the project root, i.e. relative to the `CARGO_MANIFEST_DIR`, or relative to the rust module that includes it.
+> * To specify the path to the included SQL file relative to the project root start the path with the `/` character.
+> * To specify the path to the included SQL file relative to the rust module that included it start the path with the `./` characters.
+> * ⚠️ For compatibility with the legacy code the path to the SQL file can also be specified without `/` or `./` prefix. In this case the path to it will be considered to be relative to the project root (as if it was specified with the leading `/`).
 
 # Under the Hood
 
@@ -120,15 +123,15 @@ impl LibrarySql for rusqlite::Connection {
 
 The included [documentation][5] describes the supported SQL file format and provides instructions on writing your own `impl_sql` macro.
 
-# 💥 Breaking Changes in Version 0.3
+# Minimum Supported Rust Version
 
-* Order of the parameters for the generated method is defined by the order of the `param` descriptors. This is a potentially breaking change as previously parameters of the generated method followed the order of the parameters in the SQL statement. When SQL statement header does not use `param` descriptors, then the generated generic method parameters will be ordered according to their appearance in the SQL statement.
-* Statements are terminated with the slash `/` instead of the semicolon `;`. This was implemented to allow declaration and use of [batches][7] of statements for SQLite and PL/SQL blocks for Oracle. Note that statement terminator is optional when the statement is the last statement in the file or when it is followed by another statement, which header will auto-terminate the preceding statement.
+Since `include-sql` 0.4 the minimum supported rust version is 1.88 where [Span::file()][4] was stabilized.
+
+> ⚠️ **Note** that [Span::file()][4] when it is called by [rust-analyzer][6], at the time of this writing (version 0.4.2535), returns empty string. This prevents `include-sql` determining the module that called it. While paths relative to the calling module work just fine when projects are compiled by cargo, until [Span::file()][4] is fully functional within [rust-analyzer][6], it is advisable to specify included SQL file paths relative to the project root.
 
 [1]: https://github.com/krisajenkins/yesql
 [2]: https://crates.io/crates/include-postgres-sql
 [3]: https://crates.io/crates/include-sqlite-sql
-[4]: https://doc.rust-lang.org/proc_macro/struct.SourceFile.html
+[4]: https://doc.rust-lang.org/proc_macro/struct.Span.html#method.file
 [5]: https://quietboil.github.io/include-sql
-[6]: https://crates.io/crates/include-oracle-sql
-[7]: https://docs.rs/rusqlite/latest/rusqlite/struct.Connection.html#method.execute_batch
+[6]: https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer

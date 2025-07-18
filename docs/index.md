@@ -18,7 +18,7 @@ The users of your implementation would then be able to generate API to access da
 ```rust
 use your_crate::{include_sql, impl_sql};
 
-include_sql!("src/queries.sql");
+include_sql!("/sql/queries.sql");
 ```
 
 # Anatomy of the Included SQL File
@@ -42,7 +42,7 @@ SELECT book_title
 
 -- name: loan_books!
 --
--- Updates the book records to reflect loan to a patron
+-- Updates the book records to reflect the loan to a patron
 --
 -- # Parameters
 --
@@ -95,7 +95,7 @@ impl_sql!{ LibrarySql =
   },
   {
     ! loan_books (# book_titles (u32) : user_id (&str))
-    "\n Updates the book records to reflect loan to a patron\n\n # Parameters\n\n * `book_ids` - book IDs\n * `user_id` - user ID\n"
+    "\n Updates the book records to reflect the loan to a patron\n\n # Parameters\n\n * `book_ids` - book IDs\n * `user_id` - user ID\n"
     $ "UPDATE library\n   SET loaned_to = " : user_id "\n,     loaned_on = current_timestamp\n WHERE book_title IN (" # book_titles ")"
   }
 }
@@ -117,7 +117,7 @@ Where:
 
 * The following `(&str)` and `(usize)` are Rust parameter types as declared in the SQL.
 
-> **Note** that types are passed as parenthesized types. This is done to allow `impl_sql` match them as token trees. If a parameter type is not defined in SQL, `_` will be used in its place (this `_` drives the need to match parameter types as token trees) for which `impl_sql` is expected to generate an appropriate generic type.
+> **Note** that types are passed as parenthesized types. This is done to allow `impl_sql` match them as token trees. If a parameter type is not defined in the SQL, `_` will be used in its place (this `_` drives the need to match parameter types as token trees) for which `impl_sql` is expected to generate an appropriate generic type.
 
 * `$` is a helper token that could be used to generate repetitions if generated artifacts are macros.
 
@@ -135,7 +135,7 @@ impl_sql!{ LibrarySql =
   },
   {
     ! loan_books (: user_id ('user_id &str) # book_ids ('book_ids usize))
-    "\n Updates the book records to reflect loan to a patron\n\n # Parameters\n\n * `book_ids` - book IDs\n * `user_id` - user ID\n"
+    "\n Updates the book records to reflect the loan to a patron\n\n # Parameters\n\n * `book_ids` - book IDs\n * `user_id` - user ID\n"
     $ "UPDATE library SET loaned_to = " : user_id ", loaned_on = current_timestamp WHERE book_title IN ( " # book_titles " )"
   }
 }
@@ -147,7 +147,7 @@ For example, for this query:
 ```sql
 -- name: get_users_who_loaned_books?
 --
--- Returns names patrons to whom the specified books are loaned
+-- Returns the names of patrons who borroweed the specified books.
 --
 -- # Parameters
 --
@@ -164,7 +164,7 @@ include-sql will generate:
 impl_sql!{ LibrarySql =
   {
     ? get_users_who_loaned_books (# book_titles ('book_titles 'book_titles_item &str))
-    " Returns names patrons to whom the specified books are loaned\n # Parameters\n * `book_titles` - book titles"
+    " Returns the names of patrons who borroweed the specified books.\n # Parameters\n * `book_titles` - book titles"
     $ "SELECT DISTINCT first_name, last_name FROM patrons JOIN library ON library.loaned_to = patrons.user_id WHERE book_title IN (" # book_titles ")"
   }
 }
@@ -172,7 +172,7 @@ impl_sql!{ LibrarySql =
 
 # Implementation Examples
 
-As a picture is worth a thousand words before you start implementing your own `impl_sql` macro it would be advisable to review existing implementations like [include-postgres-sql][1] and [include-sqlite-sql][1], and maybe even use one of them as a starting point.
+As a picture is worth a thousand words before you start implementing your own `impl_sql` macro it would be advisable to review existing implementations like [include-postgres-sql][1] and [include-sqlite-sql][2], and maybe even use one of them as a starting point.
 
 [1]: https://crates.io/crates/include-postgres-sql
 [2]: https://crates.io/crates/include-sqlite-sql
