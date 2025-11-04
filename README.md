@@ -73,7 +73,7 @@ fn main() -> Result<()> {
 
 > ℹ️ **Note** that the path to the SQL file can be specified either relative to the project root, i.e. relative to the `CARGO_MANIFEST_DIR`, or relative to the rust module that includes it.
 > * To specify the path to the included SQL file relative to the project root start the path with the `/` character.
-> * To specify the path to the included SQL file relative to the rust module that included it start the path with the `./` characters.
+> * To specify the path to the included SQL file relative to the rust source file that included it start the path with the `./` characters.
 > * ⚠️ For compatibility with the legacy code the path to the SQL file can also be specified without `/` or `./` prefix. In this case the path to it will be considered to be relative to the project root (as if it was specified with the leading `/`).
 
 # Under the Hood
