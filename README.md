@@ -1,6 +1,8 @@
 [![crates.io](https://img.shields.io/crates/v/include-sql)](https://crates.io/crates/include-sql)
 [![Documentation](https://docs.rs/include-sql/badge.svg)](https://docs.rs/include-sql)
 ![MIT](https://img.shields.io/crates/l/include-sql.svg)
+![MSRV](https://img.shields.io/crates/msrv/include-sql)
+
 
 **include-sql** is a macro for *using* SQL in Rust.
 
@@ -16,7 +18,7 @@ Add `include-sqlite-sql` as a dependency:
 
 ```toml
 [dependencies]
-include-sqlite-sql = "0.2"
+include-sqlite-sql = "0.3"
 ```
 
 Write your SQL and save it in a file. For example, let's say the following is saved as `library.sql` in the project's `sql` folder:
@@ -125,7 +127,7 @@ The included [documentation][5] describes the supported SQL file format and prov
 
 # Minimum Supported Rust Version
 
-Since `include-sql` 0.4 the minimum supported rust version is 1.88 where [Span::file()][4] was stabilized.
+Since `include-sql` 0.3.2 the minimum supported rust version is 1.88 where [Span::file()][4] was stabilized.
 
 > ⚠️ **Note** that [Span::file()][4] when it is called by [rust-analyzer][6], at the time of this writing (version 0.4.2535), returns empty string. This prevents `include-sql` determining the module that called it. While paths relative to the calling module work just fine when projects are compiled by cargo, until [Span::file()][4] is fully functional within [rust-analyzer][6], it is advisable to specify included SQL file paths relative to the project root.
 
